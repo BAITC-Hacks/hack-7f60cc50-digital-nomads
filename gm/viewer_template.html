@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Граф денег — экран аналитика</title>
+<style>
+:root{
+  --bg:#f6f7f9;--panel:#ffffff;--ink:#1d2330;--muted:#6b7280;--line:#e3e6ec;--accent:#2f5bd3;
+  --chip:#eef1f6;--warn:#b45309;--ok:#15803d;
+  --r-coordinator:#d62728;--r-consolidator:#f28e2b;--r-distributor:#8e5cc6;--r-transit:#2f78c4;--r-terminal:#2ca02c;--r-peripheral:#aeb6c2;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151b;--panel:#1a1e26;--ink:#e6e9ef;--muted:#9aa3b2;--line:#2a303b;--accent:#7aa2ff;--chip:#242a35;--warn:#f0a44b;--ok:#4ade80;
+  --r-peripheral:#5b6474;}}
+:root[data-theme="dark"]{--bg:#12151b;--panel:#1a1e26;--ink:#e6e9ef;--muted:#9aa3b2;--line:#2a303b;--accent:#7aa2ff;--chip:#242a35;--warn:#f0a44b;--ok:#4ade80;--r-peripheral:#5b6474;}
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column}
+header{display:flex;gap:16px;align-items:center;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:16px;margin:0;white-space:nowrap}
+.kpi{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted)}
+.kpi b{color:var(--ink);font-variant-numeric:tabular-nums}
+.search{margin-left:auto;display:flex;gap:6px}
+input,select,button,textarea{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+button{cursor:pointer}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:hover{filter:brightness(.97)}
+main{flex:1;display:grid;grid-template-columns:220px 1fr 420px;min-height:0}
+aside,section.right{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:12px}
+section.right{border-right:0;border-left:1px solid var(--line);padding:0;display:flex;flex-direction:column}
+#cy{position:relative;min-height:0}
+.ctl{margin-bottom:12px}.ctl label{display:block;color:var(--muted);font-size:12px;margin-bottom:3px}
+.ctl select,.ctl input{width:100%}
+.legend div{display:flex;align-items:center;gap:6px;margin:3px 0;cursor:pointer}
+.legend div.off{opacity:.35}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:none}
+.tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
+.tabs button{border:0;border-radius:0;background:none;padding:9px 10px;color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.pane{display:none;padding:12px;overflow:auto;flex:1}.pane.on{display:block}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;font-size:12px;position:sticky;top:0;background:var(--panel)}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--chip)}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;color:#fff;font-size:12px}
+.chip{display:inline-block;background:var(--chip);border-radius:10px;padding:1px 8px;margin:2px 3px 2px 0;font-size:12px}
+.chip.warn{color:var(--warn)}
+.gid{color:var(--accent);cursor:pointer;text-decoration:underline dotted;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}.small{font-size:12px}
+h3{font-size:14px;margin:14px 0 6px}h2{font-size:18px;margin:0 0 4px}
+.ev{background:var(--chip);border-radius:6px;padding:8px;margin:8px 0}
+.bar{height:8px;border-radius:4px;background:var(--accent)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px}.kv div:nth-child(odd){color:var(--muted)}
+.note{border-left:3px solid var(--warn);padding:4px 8px;margin:8px 0;background:var(--chip);border-radius:0 6px 6px 0}
+#tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;display:none;z-index:10;max-width:320px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+#empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);pointer-events:none}
+.answer{white-space:pre-wrap;background:var(--chip);border-radius:6px;padding:8px;margin-top:8px}
+@media (max-width:1100px){main{grid-template-columns:1fr;grid-auto-rows:auto}#cy{height:60vh}aside,section.right{border:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Граф денег</h1>
+  <div class="kpi" id="kpi"></div>
+  <div class="search">
+    <input id="q" list="gids" placeholder="gid или его часть…" size="22">
+    <datalist id="gids"></datalist>
+    <button class="primary" id="go">Найти</button>
+    <button id="theme" title="Тема">◐</button>
+  </div>
+</header>
+<main>
+  <aside>
+    <div class="ctl"><label>Режим схемы</label>
+      <select id="mode">
+        <option value="top">Скелет: топ-узлы и связи между ними</option>
+        <option value="ego">Окружение выбранного gid</option>
+        <option value="cluster">Кластер</option>
+        <option value="full">Вся сеть</option>
+      </select></div>
+    <div class="ctl" id="egoCtl"><label>Колен от узла</label>
+      <select id="hops"><option>1</option><option selected>2</option><option>3</option></select>
+      <label style="margin-top:6px">Направление денег</label>
+      <select id="dir"><option value="both">в обе стороны</option><option value="up">откуда пришли (вверх)</option><option value="down">куда ушли (вниз)</option></select></div>
+    <div class="ctl" id="clCtl"><label>Кластер</label><select id="cl"></select></div>
+    <div class="ctl"><label>Топ-N для скелета</label><input id="topn" type="number" min="10" max="200" value="30"></div>
+    <div class="ctl"><label>Цвет узлов</label>
+      <select id="colorBy"><option value="role">по роли</option><option value="cluster">по кластеру</option></select></div>
+    <div class="ctl"><label>Роли (клик — скрыть/показать)</label><div class="legend" id="legend"></div></div>
+    <div class="ctl small muted">
+      Размер узла — priority_score. Толстая чёрная рамка — seed. Пунктир — обрыв выгрузки на 4-м колене.
+      Стрелка — направление перевода, толщина — сумма. У выбранного узла входящие <span style="color:#2f78c4">синие</span>, исходящие <span style="color:#e8710a">оранжевые</span>.
+      Двойной клик — перестроить окружение.
+    </div>
+  </aside>
+  <div id="cy"><div id="empty">Нет узлов для отображения</div></div>
+  <section class="right">
+    <div class="tabs" id="tabs">
+      <button data-p="card" class="on">Узел</button><button data-p="top">Топ</button><button data-p="clusters">Кластеры</button>
+      <button data-p="res">Устойчивость</button><button data-p="gaps">Белые пятна</button><button data-p="list">Перечень</button>
+      <button data-p="ai">Ассистент</button><button data-p="rep">Отчёт</button>
+    </div>
+    <div class="pane on" id="p-card"><p class="muted">Выберите узел на схеме, в топ-листе или через поиск.</p></div>
+    <div class="pane" id="p-top"></div>
+    <div class="pane" id="p-clusters"></div>
+    <div class="pane" id="p-res"></div>
+    <div class="pane" id="p-gaps"></div>
+    <div class="pane" id="p-list"></div>
+    <div class="pane" id="p-ai"></div>
+    <div class="pane" id="p-rep"></div>
+  </section>
+</main>
+<div id="tip"></div>
+<script>/*__CYTOSCAPE__*/</script>
+<script>
+const DATA = /*__DATA__*/null;
+const ROLE_RU={coordinator:"координатор",consolidator:"консолидатор",distributor:"распределитель",transit:"транзит",terminal:"конечный получатель",peripheral:"периферия"};
+const ROLES=Object.keys(ROLE_RU);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const roleColor=r=>css('--r-'+r);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const kzt=x=>{x=+x||0;return x>=1e6?(x/1e6).toFixed(1)+' млн':x>=1e3?Math.round(x/1e3)+' тыс.':Math.round(x)+''};
+const pct=x=>x==null?'—':Math.round(x*100)+'%';
+
+// ---------- индексы
+const N=new Map(DATA.nodes.map(n=>[n.gid,n]));
+const OUT=new Map(),IN=new Map();
+for(const [u,v,s,c] of DATA.edges){(OUT.get(u)||OUT.set(u,[]).get(u)).push([v,s,c]);(IN.get(v)||IN.set(v,[]).get(v)).push([u,s,c]);}
+const TXN=new Map();for(const t of DATA.tx){for(const g of [t[0],t[1]]){(TXN.get(g)||TXN.set(g,[]).get(g)).push(t)}}
+const hidden=new Set();
+let selected=null, cy=null;
+const clPalette=['#4e79a7','#f28e2b','#e15759','#76b7b2','#59a14f','#edc948','#b07aa1','#ff9da7','#9c755f','#bab0ac','#1f77b4','#17becf','#bcbd22','#8c564b'];
+const clColor=c=>c===0?'#999':clPalette[(c-1)%clPalette.length];
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let checklist=store.get('gm_checklist',[]);
+
+// ---------- шапка
+(function(){
+  const r=DATA.report, dq=r.data_quality;
+  $('kpi').innerHTML=`<span>узлов <b>${dq.n_nodes.toLocaleString('ru')}</b></span><span>рёбер <b>${dq.n_edges.toLocaleString('ru')}</b></span>
+  <span>seed <b>${dq.n_seed}</b></span><span>оборот <b>${kzt(dq.turnover_kzt)}</b> KZT</span>
+  <span>кластеров <b>${r.n_clusters}</b></span><span>период <b>${dq.period}</b></span>`;
+  $('gids').innerHTML=DATA.top.map(t=>`<option value="${t.gid}">${ROLE_RU[t.role]} · ${t.priority_score}</option>`).join('');
+  $('cl').innerHTML=DATA.clusters.map(c=>`<option value="${c.cluster_id}">#${c.cluster_id} · ${c.n_nodes} узл. · ${c.n_seed} seed</option>`).join('');
+  const cnt={};DATA.nodes.forEach(n=>cnt[n.role]=(cnt[n.role]||0)+1);
+  $('legend').innerHTML=ROLES.map(r=>`<div data-r="${r}"><span class="dot" style="background:${roleColor(r)}"></span>${ROLE_RU[r]} <span class="muted">${cnt[r]||0}</span></div>`).join('');
+  $('legend').onclick=e=>{const d=e.target.closest('[data-r]');if(!d)return;const r=d.dataset.r;hidden.has(r)?hidden.delete(r):hidden.add(r);d.classList.toggle('off');draw();};
+})();
+
+// ---------- выбор подграфа
+function egoSet(g,h,dir){
+  const seen=new Set([g]);let front=[g];
+  for(let i=0;i<h;i++){const nx=[];for(const u of front){
+    if(dir!=='up')for(const [v] of OUT.get(u)||[])if(!seen.has(v)){seen.add(v);nx.push(v)}
+    if(dir!=='down')for(const [v] of IN.get(u)||[])if(!seen.has(v)){seen.add(v);nx.push(v)}}front=nx;}
+  if(seen.size>450){const arr=[...seen].sort((a,b)=>N.get(b).priority_score-N.get(a).priority_score).slice(0,450);arr.includes(g)||arr.push(g);return new Set(arr)}
+  return seen;
+}
+function topSet(k){
+  const top=new Set([...DATA.nodes].sort((a,b)=>b.priority_score-a.priority_score).slice(0,k).map(n=>n.gid));
+  const s=new Set(top);
+  // узлы-связки: лежат между двумя топ-узлами (пришло от топ-узла и ушло к топ-узлу)
+  for(const n of DATA.nodes){if(s.has(n.gid))continue;
+    const i=(IN.get(n.gid)||[]).some(([u])=>top.has(u)), o=(OUT.get(n.gid)||[]).some(([v])=>top.has(v));
+    if(i&&o)s.add(n.gid);}
+  return s;
+}
+function currentSet(){
+  const m=$('mode').value;
+  if(m==='ego')return selected?egoSet(selected,+$('hops').value,$('dir').value):new Set();
+  if(m==='cluster'){const c=+$('cl').value;return new Set(DATA.nodes.filter(n=>n.cluster_id===c).map(n=>n.gid))}
+  if(m==='top')return topSet(+$('topn').value||30);
+  return new Set(DATA.nodes.map(n=>n.gid));
+}
+
+// ---------- отрисовка
+function draw(){
+  const m=$('mode').value; $('egoCtl').style.display=m==='ego'?'':'none'; $('clCtl').style.display=m==='cluster'?'':'none';
+  let S=currentSet();
+  S=new Set([...S].filter(g=>!hidden.has(N.get(g).role)||g===selected));
+  const full=m==='full', colorBy=$('colorBy').value;
+  const els=[];
+  for(const g of S){const n=N.get(g);
+    els.push({group:'nodes',data:{id:g,label:'…'+g.slice(-10),role:n.role,pr:n.priority_score,
+      color:colorBy==='role'?roleColor(n.role):clColor(n.cluster_id),seed:n.is_seed?1:0,trunc:n.truncated_by_depth?1:0,
+      showLabel:(!full||n.priority_score>0.6)?1:0},position:{x:n.x,y:n.y}});}
+  let maxS=1;for(const [u,v,s] of DATA.edges)if(S.has(u)&&S.has(v))maxS=Math.max(maxS,s);
+  for(const [u,v,s,c] of DATA.edges)if(S.has(u)&&S.has(v))
+    els.push({group:'edges',data:{id:u+'>'+v,source:String(u),target:String(v),s,c,w:0.6+4*Math.log1p(s)/Math.log1p(maxS)}});
+  $('empty').style.display=S.size?'none':'flex';
+  if(cy)cy.destroy();
+  cy=cytoscape({container:$('cy'),elements:els,wheelSensitivity:0.25,minZoom:0.05,maxZoom:4,
+    style:[
+      {selector:'node',style:{'background-color':'data(color)',width:e=>10+38*e.data('pr'),height:e=>10+38*e.data('pr'),
+        label:e=>e.data('showLabel')?e.data('label'):'','font-size':9,color:css('--ink'),'text-valign':'bottom','text-margin-y':3,
+        'border-width':e=>e.data('seed')?3:(e.data('trunc')?1.5:0),'border-color':e=>e.data('seed')?css('--ink'):css('--muted'),
+        'border-style':e=>e.data('trunc')&&!e.data('seed')?'dashed':'solid'}},
+      {selector:'edge',style:{width:'data(w)','line-color':css('--line')==='#e3e6ec'?'#c3c9d4':'#4a5363','target-arrow-shape':'triangle',
+        'target-arrow-color':css('--line')==='#e3e6ec'?'#c3c9d4':'#4a5363','arrow-scale':0.7,'curve-style':full?'straight':'bezier',opacity:0.85}},
+      {selector:'node.sel',style:{'border-width':4,'border-color':css('--accent'),'border-style':'solid'}},
+      {selector:'edge.in',style:{'line-color':'#2f78c4','target-arrow-color':'#2f78c4',opacity:1,'z-index':9}},
+      {selector:'edge.out',style:{'line-color':'#e8710a','target-arrow-color':'#e8710a',opacity:1,'z-index':9}},
+      {selector:'.faded',style:{opacity:0.15}}],
+    layout:layoutFor(m,S.size)});
+  cy.on('tap','node',e=>select(e.target.id(),false));
+  cy.on('dbltap','node',e=>{select(e.target.id(),false);$('mode').value='ego';draw();});
+  cy.on('mouseover','node',e=>{const n=N.get(e.target.id());tip(`<b>${n.gid}</b> · ${ROLE_RU[n.role]} · приоритет ${n.priority_score}<br>${esc(n.evidence)}`,e)});
+  cy.on('mouseover','edge',e=>{const d=e.target.data();tip(`${d.source} → ${d.target}<br><b>${kzt(d.s)}</b> KZT, переводов: ${d.c}`,e)});
+  cy.on('mouseout',()=>$('tip').style.display='none');
+  if(selected)highlight();
+}
+function layoutFor(m,n){
+  if(m==='full'||m==='cluster')return {name:'preset',fit:true,padding:20};
+  if(m==='ego'&&$('dir').value!=='both')return {name:'breadthfirst',directed:true,roots:selected?['#'+selected]:undefined,spacingFactor:1.1,padding:20,animate:false};
+  return {name:'cose',animate:false,nodeRepulsion:9000,idealEdgeLength:70,padding:20,randomize:true,numIter:n>300?600:1000};
+}
+function tip(html,e){const t=$('tip');t.innerHTML=html;t.style.display='block';const p=e.renderedPosition||{x:0,y:0};const r=$('cy').getBoundingClientRect();
+  t.style.left=Math.min(r.left+p.x+14,innerWidth-330)+'px';t.style.top=(r.top+p.y+14)+'px';}
+function highlight(){
+  if(!cy)return;cy.elements().removeClass('sel in out');
+  const n=cy.getElementById(selected);if(!n.length)return;
+  n.addClass('sel');n.incomers('edge').addClass('in');n.outgoers('edge').addClass('out');
+}
+
+// ---------- карточка узла
+function select(g,redraw=true){
+  if(!N.has(g)){alert('gid '+g+' не найден в графе');return}
+  selected=g;$('q').value=g;showTab('card');renderCard(g);
+  if(redraw){if(!cy||!cy.getElementById(g).length){$('mode').value='ego';draw();}else{highlight();cy.animate({center:{eles:cy.getElementById(g)},zoom:Math.max(cy.zoom(),1)},{duration:300});}}
+  else highlight();
+}
+function recs(n){
+  const r=[];
+  if(n.role==='coordinator')r.push('Приоритетная проверка как возможного организатора: запросить полные входящие и исходящие (включая межбанк), связи с другими координаторами.');
+  if(n.role==='consolidator')r.push('Проверить происхождение средств от '+n.in_deg+' плательщиков и дальнейшее использование накопленного.');
+  if(n.role==='distributor')r.push('Получатели веерной рассылки — кандидаты в дропы/курьеры: сверить со списком известных лиц.');
+  if(n.role==='transit')r.push('Транзитный счёт: проверить связь владельца со счётом (подставное лицо?), скорость пропуска.');
+  if(n.truncated_by_depth)r.push('Узел на границе выгрузки: запросить исходящие переводы (5-е колено).');
+  if(n.flag_structuring)r.push('Входящие дробятся у порога 5–10 тыс. — запросить транзакции ниже 5 000 KZT.');
+  if(n.out_before_any_in_kzt>0)r.push('Отправлял раньше, чем получал в графе ('+kzt(n.out_before_any_in_kzt)+'): источник средств вне выборки.');
+  if(n.is_seed)r.push('Seed-клиент: входящие из-за пределов выборки не видны — отношение «отдал/получил» некорректно.');
+  return r;
+}
+function flows(list,dirWord){
+  if(!list||!list.length)return '<p class="muted small">нет</p>';
+  const rows=[...list].sort((a,b)=>b[1]-a[1]).slice(0,12).map(([g,s,c])=>{const m=N.get(g);
+    return `<tr><td><span class="gid" data-g="${g}">${g}</span></td><td><span class="dot" style="background:${roleColor(m.role)}"></span> ${ROLE_RU[m.role]}${m.is_seed?' · seed':''}</td><td class="num">${kzt(s)}</td><td class="num">${c}</td></tr>`}).join('');
+  return `<table><tr><th>${dirWord}</th><th>роль</th><th class="num">сумма</th><th class="num">перев.</th></tr>${rows}</table>${list.length>12?`<p class="muted small">…и ещё ${list.length-12}</p>`:''}`;
+}
+function timeline(g){
+  const t=TXN.get(g)||[];if(!t.length)return '';
+  const days=31,inA=new Array(days).fill(0),outA=new Array(days).fill(0);
+  for(const [a,b,d,s] of t){if(d<0||d>=days)continue;if(b===g)inA[d]+=s;if(a===g)outA[d]+=s;}
+  const mx=Math.max(1,...inA,...outA),W=380,H=70,bw=W/days;
+  let svg=`<svg width="100%" viewBox="0 0 ${W} ${H*2+14}" role="img" aria-label="Поступления и списания по дням">`;
+  for(let d=0;d<days;d++){const hi=inA[d]/mx*H,ho=outA[d]/mx*H;
+    if(hi)svg+=`<rect x="${d*bw+1}" y="${H-hi}" width="${bw-2}" height="${hi}" fill="#2f78c4"><title>день ${d+1}: пришло ${kzt(inA[d])}</title></rect>`;
+    if(ho)svg+=`<rect x="${d*bw+1}" y="${H+4}" width="${bw-2}" height="${ho}" fill="#e8710a"><title>день ${d+1}: ушло ${kzt(outA[d])}</title></rect>`;}
+  svg+=`<line x1="0" x2="${W}" y1="${H+2}" y2="${H+2}" stroke="${css('--muted')}" stroke-width=".5"/><text x="0" y="${H*2+13}" font-size="9" fill="${css('--muted')}">1</text><text x="${W-12}" y="${H*2+13}" font-size="9" fill="${css('--muted')}">31</text></svg>`;
+  return `<h3>Движение по дням (${DATA.period_start?DATA.period_start.slice(0,7):''})</h3><div class="small muted">вверх — поступления, вниз — списания</div>${svg}`;
+}
+function renderCard(g){
+  const n=N.get(g);
+  const flags=[];
+  if(n.is_seed)flags.push('seed');if(n.truncated_by_depth)flags.push('обрыв на 4-м колене');
+  if(n.fast_out_share>=0.7&&n.in_deg&&n.out_deg)flags.push('сквозной пропуск ≤2 дн');
+  if(n.flag_structuring)flags.push('дробление у порога');if(n.max_payers_same_day>=3)flags.push(n.max_payers_same_day+' плательщ. в один день');
+  if(n.n_cycles)flags.push('возвратный поток ('+n.n_cycles+')');if(n.flag_anomaly)flags.push('аномалия для колена (z='+n.anomaly_z+')');
+  const parts=[['роль',n.prio_role],['деньги из seed-цепочки',n.prio_traced],['сведение seed-потоков',n.prio_merge],['охват seed',n.prio_reach],['PageRank',n.prio_pr],['посредничество',n.prio_btw],['флаги',n.prio_flags]];
+  const inList=checklist.some(x=>x.gid===g);
+  $('p-card').innerHTML=`
+   <h2>${g}</h2>
+   <span class="badge" style="background:${roleColor(n.role)}">${ROLE_RU[n.role]}</span>
+   <span class="chip">уверенность ${n.role_score}</span><span class="chip">приоритет ${n.priority_score}</span><span class="chip">кластер ${n.cluster_id}</span><span class="chip">колено ${n.depth}</span>
+   <div class="ev">${esc(n.evidence)}</div>
+   ${flags.map(f=>`<span class="chip warn">${esc(f)}</span>`).join('')}
+   <div style="margin:10px 0;display:flex;gap:6px;flex-wrap:wrap">
+     <button id="addList">${inList?'✓ в перечне':'+ в перечень на проверку'}</button>
+     <button id="egoBtn">Окружение на схеме</button>
+     <button id="aiCard">AI-справка</button></div>
+   <div id="aiCardOut"></div>
+   <h3>Метрики</h3>
+   <div class="kv small">
+    <div>получено / отправлено</div><div>${kzt(n.in_kzt)} / ${kzt(n.out_kzt)} KZT</div>
+    <div>плательщиков / получателей</div><div>${n.in_deg} / ${n.out_deg}</div>
+    <div>доля пропуска (out/in)</div><div>${n.pass_through==null?'—':pct(Math.min(n.pass_through,99))}${n.is_seed?' <span class="muted">(seed: некорректно)</span>':''}</div>
+    <div>seed «дотягиваются»</div><div>${n.seed_reach} (прямых seed-плательщиков ${n.n_seed_payers})</div>
+    <div>сводит новых seed-потоков</div><div>${n.merge_gain} (ветвей-агрегатов ${n.n_agg_payers})</div>
+    <div>деньги из seed-цепочки</div><div>${kzt(n.seed_traced_in_kzt)}</div>
+    <div>сквозной пропуск ≤2 дн</div><div>${pct(n.fast_out_share)}${n.median_lag_days!=null?' · медиан. лаг '+n.median_lag_days+' дн':''}</div>
+    ${n.truncated_by_depth?`<div>P(деньги ушли дальше)</div><div>${n.p_continue==null?'—':n.p_continue.toFixed(2)} <span class="muted">(модель по 1–3 коленам)</span></div>`:''}
+    <div>PageRank / betweenness</div><div>${(+n.pagerank).toExponential(2)} / ${(+n.betweenness).toFixed(4)}</div>
+   </div>
+   <h3>Из чего сложился приоритет</h3>
+   ${parts.map(([k,v])=>`<div class="small" style="display:grid;grid-template-columns:150px 1fr 40px;gap:6px;align-items:center"><span class="muted">${k}</span><div class="bar" style="width:${Math.max(1,v/0.25*100)}%"></div><span class="num">${(+v).toFixed(3)}</span></div>`).join('')}
+   <h3>Что проверить</h3><ul class="small">${recs(n).map(r=>`<li>${esc(r)}</li>`).join('')||'<li class="muted">специальных рекомендаций нет</li>'}</ul>
+   <h3>Откуда пришли деньги</h3>${flows(IN.get(g),'плательщик')}
+   <h3>Куда ушли деньги</h3>${flows(OUT.get(g),'получатель')}
+   ${timeline(g)}
+   <p class="small muted">Выводы — гипотезы для проверки, а не утверждение о причастности.</p>`;
+  $('addList').onclick=()=>{toggleList(g);renderCard(g)};
+  $('egoBtn').onclick=()=>{$('mode').value='ego';draw()};
+  $('aiCard').onclick=()=>aiCard(g);
+}
+document.addEventListener('click',e=>{const t=e.target.closest('.gid');if(t){select(t.dataset.g)}});
+
+// ---------- перечень на проверку
+function toggleList(g){const i=checklist.findIndex(x=>x.gid===g);
+  if(i>=0)checklist.splice(i,1);else{const n=N.get(g);checklist.push({gid:g,role:n.role,priority:n.priority_score,evidence:n.evidence,note:''})}
+  store.set('gm_checklist',checklist);renderList();}
+function renderList(){
+  $('p-list').innerHTML=`<p class="small muted">Клиенты для углублённой проверки / запроса в правоохранительные органы. Сохраняется в этом браузере.</p>
+  ${checklist.length?`<table><tr><th>gid</th><th>роль</th><th>приор.</th><th>заметка</th><th></th></tr>${checklist.map((x,i)=>`<tr><td><span class="gid" data-g="${x.gid}">${x.gid}</span></td><td>${ROLE_RU[x.role]}</td><td class="num">${x.priority}</td>
+  <td><input data-i="${i}" class="note-in" value="${esc(x.note)}" style="width:100%"></td><td><button data-rm="${x.gid}">✕</button></td></tr>`).join('')}</table>
+  <p><button class="primary" id="dl">Скачать CSV</button> <button id="addTop">+ весь топ-10</button></p>`:'<p>Пусто. Добавляйте узлы кнопкой «+ в перечень» в карточке.</p><p><button id="addTop">+ весь топ-10</button></p>'}`;
+  $('p-list').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>toggleList(b.dataset.rm));
+  $('p-list').querySelectorAll('.note-in').forEach(inp=>inp.onchange=()=>{checklist[+inp.dataset.i].note=inp.value;store.set('gm_checklist',checklist)});
+  $('addTop').onclick=()=>{DATA.top.slice(0,10).forEach(t=>{if(!checklist.some(x=>x.gid===t.gid))toggleList(t.gid)})};
+  if($('dl'))$('dl').onclick=()=>{
+    const q=s=>'"'+String(s).replace(/"/g,'""')+'"';
+    const csv='gid,role,priority_score,evidence,note\n'+checklist.map(x=>[x.gid,x.role,x.priority,q(x.evidence),q(x.note)].join(',')).join('\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download='perechen_na_proverku.csv';a.click();};
+}
+
+// ---------- вкладки
+function showTab(p){document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+  document.querySelectorAll('.pane').forEach(x=>x.classList.toggle('on',x.id==='p-'+p));}
+$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.p)};
+
+function renderTop(){
+  const f=$('topRole')?$('topRole').value:'';
+  const rows=[...DATA.nodes].filter(n=>!f||n.role===f).sort((a,b)=>b.priority_score-a.priority_score).slice(0,100);
+  const why=new Map(DATA.top.map(t=>[t.gid,t.why]));
+  $('p-top').innerHTML=`<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><span class="muted">роль</span>
+   <select id="topRole"><option value="">все</option>${ROLES.map(r=>`<option value="${r}" ${r===f?'selected':''}>${ROLE_RU[r]}</option>`).join('')}</select>
+   <span class="small muted">топ-100 по priority_score; полный список — top_nodes.csv</span></div>
+   <table><tr><th>#</th><th>gid</th><th>роль</th><th class="num">приор.</th><th>обоснование</th></tr>
+   ${rows.map((n,i)=>`<tr class="click" data-g="${n.gid}"><td>${i+1}</td><td>${n.gid}${n.is_seed?' <span class="chip">seed</span>':''}</td><td><span class="dot" style="background:${roleColor(n.role)}"></span> ${ROLE_RU[n.role]}</td><td class="num">${n.priority_score.toFixed(3)}</td><td class="small">${esc(n.evidence)}</td></tr>`).join('')}</table>`;
+  $('topRole').onchange=renderTop;
+  $('p-top').querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>select(tr.dataset.g));
+}
+function renderClusters(){
+  $('p-clusters').innerHTML=`<p class="small muted">Louvain на неориентированной проекции (вес — log суммы). «Устойчивость» — средний Жаккар с кластерами при 5 других random seed.</p>
+  <table><tr><th>#</th><th class="num">узл.</th><th class="num">seed</th><th class="num">оборот внутри</th><th class="num">уст.</th><th>гипотеза</th></tr>
+  ${DATA.clusters.map(c=>`<tr class="click" data-c="${c.cluster_id}"><td>${c.cluster_id}</td><td class="num">${c.n_nodes}</td><td class="num">${c.n_seed}</td><td class="num">${kzt(c.sum_kzt_internal)}</td><td class="num">${c.stability??''}</td><td class="small">${esc(c.hypothesis)}<br><span class="muted">${esc(c.roles)}</span></td></tr>`).join('')}</table>`;
+  $('p-clusters').querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>{$('mode').value='cluster';$('cl').value=tr.dataset.c;draw()});
+}
+function renderRes(){
+  const R=DATA.resilience, strat={priority:['наш приоритет','#d62728'],pagerank:['PageRank','#2f78c4'],in_kzt:['по сумме входа','#8e5cc6'],random:['случайно','#999']};
+  const xs=[...new Set(R.map(r=>r.removed))].sort((a,b)=>a-b), W=380,H=200,P=30;
+  const X=v=>P+(xs.indexOf(v))/(xs.length-1)*(W-P-10), Y=v=>10+(1-v)*(H-P);
+  let svg=`<svg width="100%" viewBox="0 0 ${W} ${H+10}" role="img" aria-label="Устойчивость сети">`;
+  for(const t of [0,0.25,0.5,0.75,1])svg+=`<line x1="${P}" x2="${W-10}" y1="${Y(t)}" y2="${Y(t)}" stroke="${css('--line')}"/><text x="2" y="${Y(t)+3}" font-size="9" fill="${css('--muted')}">${t*100}%</text>`;
+  xs.forEach(x=>svg+=`<text x="${X(x)-4}" y="${H+4}" font-size="9" fill="${css('--muted')}">${x}</text>`);
+  for(const [k,[lbl,col]] of Object.entries(strat)){const pts=R.filter(r=>r.strategy===k).sort((a,b)=>a.removed-b.removed);
+    svg+=`<polyline fill="none" stroke="${col}" stroke-width="2" points="${pts.map(p=>X(p.removed)+','+Y(p.seed_paths_left_share)).join(' ')}"/>`;
+    pts.forEach(p=>svg+=`<circle cx="${X(p.removed)}" cy="${Y(p.seed_paths_left_share)}" r="3" fill="${col}"><title>${lbl}: изъято ${p.removed} → осталось ${pct(p.seed_paths_left_share)} путей</title></circle>`);}
+  svg+='</svg>';
+  const at=(k,n)=>{const r=R.find(r=>r.strategy===k&&r.removed===n);return r?pct(r.seed_paths_left_share):'—'};
+  $('p-res').innerHTML=`<h3>Что будет с сетью при изъятии топ-N узлов</h3>
+  <p class="small">Доля пар «seed → клиент», между которыми остаётся денежный путь. Seed не изымаются — они уже известны.</p>${svg}
+  <div class="small">${Object.values(strat).map(([l,c])=>`<span class="chip"><span class="dot" style="background:${c}"></span> ${l}</span>`).join('')}</div>
+  <div class="note small">Изъятие топ-10 по нашему приоритету оставляет <b>${at('priority',10)}</b> денежных путей (случайные 10 узлов — ${at('random',10)}). Топ-20: <b>${at('priority',20)}</b>.</div>
+  <table class="small"><tr><th>стратегия</th><th class="num">N</th><th class="num">путей осталось</th><th class="num">фрагментов</th><th class="num">крупнейший</th></tr>
+  ${R.map(r=>`<tr><td>${strat[r.strategy][0]}</td><td class="num">${r.removed}</td><td class="num">${pct(r.seed_paths_left_share)}</td><td class="num">${Math.round(r.components_2plus)}</td><td class="num">${Math.round(r.largest_component)}</td></tr>`).join('')}</table>`;
+}
+function renderGaps(){
+  $('p-gaps').innerHTML=`<p class="small muted">Каких данных не хватает, чтобы закрыть белые пятна, и какой запрос сделать следующим.</p>
+  <table><tr><th>gid</th><th>пробел</th><th>наблюдение</th><th>следующий запрос</th></tr>
+  ${DATA.gaps.map(g=>`<tr><td>${g.gid==='—'?'—':`<span class="gid" data-g="${g.gid}">${g.gid}</span>`}</td><td>${esc(g.gap)}</td><td class="small">${esc(g.observation)}</td><td class="small">${esc(g.next_request)}</td></tr>`).join('')}</table>
+  <h3>Повторяющиеся маршруты A→B→C (топ-15 по «узкому месту»)</h3>
+  <table class="small"><tr><th>маршрут</th><th class="num">поток</th><th class="num">лаг, дн</th></tr>${(DATA.routes||[]).slice(0,15).map(r=>`<tr><td>${[r.a,r.b,r.c].map(g=>`<span class="gid" data-g="${g}">${g}</span>`).join(' → ')}</td><td class="num">${kzt(r.bottleneck_kzt)}</td><td class="num">${r.lag_days}</td></tr>`).join('')}</table>
+  <h3>Возвратные потоки (циклы)</h3>${(DATA.cycles||[]).length?`<table class="small">${DATA.cycles.slice(0,15).map(c=>`<tr><td>${String(c.cycle).split('→').map(g=>`<span class="gid" data-g="${g}">${g}</span>`).join(' → ')}</td><td class="num">${kzt(c.bottleneck_kzt)}</td></tr>`).join('')}</table>`:'<p class="muted small">не найдено</p>'}`;
+}
+function renderRep(){
+  const r=DATA.report,b=r.boundary_model;
+  $('p-rep').innerHTML=`<h3>Качество данных</h3><div class="kv small">${Object.entries(r.data_quality).map(([k,v])=>`<div>${k}</div><div>${esc(typeof v==='object'?JSON.stringify(v):v)}</div>`).join('')}</div>
+  <h3>Модель обрыва 4-го колена</h3><div class="kv small"><div>статус</div><div>${esc(b.status)}</div><div>обучено на</div><div>${b.n_train} узлах 1–3 колена</div>
+  ${b.cv_auc_mean!=null?`<div>CV ROC-AUC</div><div>${b.cv_auc_mean.toFixed(3)}</div><div>ожидаемо настоящих стоков</div><div>≈${Math.round(b.expected_true_terminals)} из ${b.n_truncated}</div>`:''}</div>
+  <h3>Пороги ролей</h3><div class="kv small">${Object.entries(r.thresholds).map(([k,v])=>`<div>${k}</div><div>${v}</div>`).join('')}</div>
+  <h3>Время прогона</h3><div class="kv small">${Object.entries(r.timings_sec).map(([k,v])=>`<div>${esc(k)}</div><div>${v} с</div>`).join('')}</div>`;
+}
+
+// ---------- AI (работает при запуске через serve.py)
+const API=location.protocol.startsWith('http');
+function linkify(t){return esc(t).replace(/\b(\d{5,})\b/g,(m)=>N.has(m)?`<span class="gid" data-g="${m}">${m}</span>`:m)}
+function renderAI(){
+  $('p-ai').innerHTML=`<p class="small muted">Вопрос на естественном языке → ассистент вызывает функции графа (карточка узла, общие получатели, путь денег, кто платит) и отвечает со ссылками на gid.</p>
+  ${API?'':'<div class="note small">Страница открыта как файл. Для ассистента запустите <code>python serve.py</code> и откройте http://localhost:8765 — без API-ключа работает детерминированный режим.</div>'}
+  <textarea id="aiQ" rows="3" style="width:100%" placeholder="Например: кто собирает деньги с ${DATA.top.slice(0,3).map(t=>t.gid).join(', ')}?"></textarea>
+  <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="primary" id="aiGo" ${API?'':'disabled'}>Спросить</button>
+  <button class="ex">кто собирает деньги с этих seed?</button><button class="ex">путь денег между двумя gid</button></div>
+  <div id="aiOut"></div>`;
+  $('p-ai').querySelectorAll('.ex').forEach(b=>b.onclick=()=>{
+    const seeds=DATA.nodes.filter(n=>n.is_seed&&n.out_deg>0).slice(0,5).map(n=>n.gid);
+    $('aiQ').value=b.textContent.startsWith('кто')?`Кто собирает деньги с ${seeds.join(', ')}?`:`Как деньги идут от ${seeds[0]} к ${DATA.top[0].gid}?`;});
+  $('aiGo').onclick=async()=>{const q=$('aiQ').value.trim();if(!q)return;$('aiOut').innerHTML='<p class="muted">думаю…</p>';
+    try{const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});const j=await r.json();
+      $('aiOut').innerHTML=`<div class="answer">${linkify(j.answer||j.error)}</div><p class="small muted">режим: ${esc(j.mode)} · вызовы: ${esc((j.tools||[]).join(', '))}</p>`;}
+    catch(e){$('aiOut').innerHTML='<div class="note">Сервер недоступен: '+esc(e)+'</div>'}};
+}
+async function aiCard(g){
+  const out=$('aiCardOut');if(!API){out.innerHTML='<div class="note small">AI-справка доступна при запуске через <code>python serve.py</code>.</div>';return}
+  out.innerHTML='<p class="muted small">готовлю справку…</p>';
+  try{const r=await fetch('/api/card?gid='+g);const j=await r.json();out.innerHTML=`<div class="answer small">${linkify(j.answer||j.error)}</div><p class="small muted">режим: ${esc(j.mode)}</p>`}
+  catch(e){out.innerHTML='<div class="note">'+esc(e)+'</div>'}
+}
+
+// ---------- события
+$('go').onclick=()=>{const q=$('q').value.replace(/\D/g,'');if(!q)return;
+  if(N.has(q))return select(q);
+  const hits=DATA.nodes.filter(n=>n.gid.includes(q));   // поиск по фрагменту: удобно, когда gid длинный
+  if(hits.length===1)return select(hits[0].gid);
+  if(!hits.length)return alert('gid '+q+' не найден в графе');
+  hits.sort((a,b)=>b.priority_score-a.priority_score);
+  showTab('card');$('p-card').innerHTML='<h3>Найдено '+hits.length+' совпадений</h3>'+hits.slice(0,30).map(n=>`<div><span class="gid" data-g="${n.gid}">${n.gid}</span> · ${ROLE_RU[n.role]} · ${n.priority_score}</div>`).join('');};
+$('q').onkeydown=e=>{if(e.key==='Enter')$('go').click()};
+['mode','hops','dir','cl','colorBy'].forEach(id=>$(id).onchange=draw);$('topn').onchange=draw;
+$('theme').onclick=()=>{const d=document.documentElement;const cur=d.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');d.dataset.theme=cur==='dark'?'light':'dark';store.set('gm_theme',d.dataset.theme);draw();};
+(function(){const t=store.get('gm_theme',null);if(t)document.documentElement.dataset.theme=t;})();
+renderTop();renderClusters();renderRes();renderGaps();renderList();renderAI();renderRep();
+const hash=decodeURIComponent(location.hash.slice(1));
+draw();
+if(hash&&N.has(hash))select(hash);else if(DATA.top.length)select(DATA.top[0].gid,false);
+</script>
+</body>
+</html>

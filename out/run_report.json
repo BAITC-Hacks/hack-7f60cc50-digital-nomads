@@ -1,0 +1,93 @@
+{
+  "data_quality": {
+    "n_nodes": 2248,
+    "n_edges": 3119,
+    "n_tx": 4840,
+    "n_seed": 81,
+    "turnover_kzt": 365890012.01,
+    "period": "2026-07-01 — 2026-07-31",
+    "depth_counts": {
+      "0": 81,
+      "1": 472,
+      "2": 462,
+      "3": 789,
+      "4": 444
+    },
+    "edges_match_tx_pairs": true,
+    "edges_match_tx_sums": true,
+    "edges_match_tx_counts": true,
+    "orphans": 19,
+    "seed_not_in_edges": 19,
+    "seed_only_receivers": 12,
+    "seed_without_outgoing": 31,
+    "depth4_zero_out": 444,
+    "tx_below_5000": 0,
+    "unknown_gids_in_edges": 0
+  },
+  "thresholds": {
+    "cons_min_payers": 5,
+    "cons_min_in_pct": 0.75,
+    "dist_min_receivers": 10,
+    "dist_min_fan_ratio": 3.0,
+    "transit_pass_lo": 0.8,
+    "transit_pass_hi": 1.2,
+    "transit_max_degree": 4,
+    "transit_min_in_kzt": 50000,
+    "fast_days": 2,
+    "terminal_min_in_kzt": 100000,
+    "terminal_max_p_continue": 0.35,
+    "coord_min_seed_reach": 5,
+    "coord_min_in_pct": 0.97,
+    "coord_min_struct_payers": 2,
+    "structuring_lo": 5000,
+    "structuring_hi": 10000,
+    "structuring_min_share": 0.5,
+    "anomaly_z": 3.5,
+    "louvain_resolution": 1.0,
+    "louvain_seed": 42,
+    "top_n": 30,
+    "seed_priority_factor": 0.85
+  },
+  "boundary_model": {
+    "n_train": 1723,
+    "base_rate_has_out": 0.3737666860127684,
+    "status": "ok",
+    "cv_auc_mean": 0.688189812441368,
+    "coefficients_std": {
+      "log_in_kzt": 0.779,
+      "in_deg": 0.334,
+      "log_in_tx": -0.206,
+      "log_mean_ticket": -0.762,
+      "active_in_days": 0.625,
+      "days_left_after_last_in": 0.002
+    },
+    "n_truncated": 444,
+    "expected_true_terminals": 298.99909085578497
+  },
+  "role_counts": {
+    "peripheral": 1671,
+    "terminal": 446,
+    "distributor": 46,
+    "consolidator": 36,
+    "transit": 34,
+    "coordinator": 15
+  },
+  "n_clusters": 45,
+  "clusters_multi_seed": 10,
+  "n_cycles": 1541,
+  "timings_sec": {
+    "загрузка и проверка данных": 0.03,
+    "граф и структурные метрики": 2.59,
+    "происхождение денег (seed_reach, merge_gain, трассировка)": 0.08,
+    "временные паттерны и аномалии": 0.04,
+    "модель обрыва 4-го колена": 0.05,
+    "циклы и маршруты": 0.11,
+    "роли, role_score, evidence": 0.17,
+    "кластеризация Louvain + устойчивость": 0.6,
+    "приоритеты, топ-лист, таблица кластеров": 0.1,
+    "устойчивость сети и белые пятна": 1.2,
+    "запись и проверка выгрузок": 0.07,
+    "экран просмотра viewer.html": 0.98
+  },
+  "total_sec": 6.02
+}
