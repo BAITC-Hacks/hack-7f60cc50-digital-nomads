@@ -116,6 +116,7 @@ h3{font-size:14px;margin:14px 0 6px}h2{font-size:18px;margin:0 0 4px}
 const DATA = /*__DATA__*/null;
 const ROLE_RU={coordinator:"координатор",consolidator:"консолидатор",distributor:"распределитель",transit:"транзит",terminal:"конечный получатель",peripheral:"периферия"};
 const ROLES=Object.keys(ROLE_RU);
+const PATTERN_RU={drop_like:'дроп: быстрый пропуск 1–2 получателям',exchanger_like:'похож на обменник/хаб',cash_out_candidate:'кандидат на вывод из банка',external_funding:'источник средств вне выборки',retail_collection:'розничный сбор (мелкие поступления)'};
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const roleColor=r=>css('--r-'+r);
 const $=id=>document.getElementById(id);
@@ -237,7 +238,10 @@ function recs(n){
   if(n.role==='distributor')r.push('Получатели веерной рассылки — кандидаты в дропы/курьеры: сверить со списком известных лиц.');
   if(n.role==='transit')r.push('Транзитный счёт: проверить связь владельца со счётом (подставное лицо?), скорость пропуска.');
   if(n.truncated_by_depth)r.push('Узел на границе выгрузки: запросить исходящие переводы (5-е колено).');
-  if(n.flag_structuring)r.push('Входящие дробятся у порога 5–10 тыс. — запросить транзакции ниже 5 000 KZT.');
+  if(n.flag_structuring)r.push('Серия мелких поступлений 5–10 тыс. (розничный сбор): запросить транзакции ниже 5 000 KZT — порога выгрузки.');
+  if((n.pattern||'').includes('cash_out_candidate'))r.push('Деньги seed пришли и не ушли внутри банка: проверить снятие наличных, межбанк, карточные операции.');
+  if((n.pattern||'').includes('external_funding'))r.push('Отдал заметно больше видимого входа: до выводов исключить легальный бизнес (KYC: вид деятельности, заявленный доход).');
+  if(n.weak_seed_link)r.push('Связь с seed слабая ('+pct(n.seed_share_in)+' входа) — высокий риск ложного срабатывания.');
   if(n.out_before_any_in_kzt>0)r.push('Отправлял раньше, чем получал в графе ('+kzt(n.out_before_any_in_kzt)+'): источник средств вне выборки.');
   if(n.is_seed)r.push('Seed-клиент: входящие из-за пределов выборки не видны — отношение «отдал/получил» некорректно.');
   return r;
@@ -265,7 +269,8 @@ function renderCard(g){
   const flags=[];
   if(n.is_seed)flags.push('seed');if(n.truncated_by_depth)flags.push('обрыв на 4-м колене');
   if(n.fast_out_share>=0.7&&n.in_deg&&n.out_deg)flags.push('сквозной пропуск ≤2 дн');
-  if(n.flag_structuring)flags.push('дробление у порога');if(n.max_payers_same_day>=3)flags.push(n.max_payers_same_day+' плательщ. в один день');
+  if(n.flag_structuring)flags.push('серия мелких поступлений');
+  for(const p of (n.pattern||'none').split(';'))if(p!=='none')flags.push(PATTERN_RU[p]||p);if(n.max_payers_same_day>=3)flags.push(n.max_payers_same_day+' плательщ. в один день');
   if(n.n_cycles)flags.push('возвратный поток ('+n.n_cycles+')');if(n.flag_anomaly)flags.push('аномалия для колена (z='+n.anomaly_z+')');
   const parts=[['роль',n.prio_role],['деньги из seed-цепочки',n.prio_traced],['сведение seed-потоков',n.prio_merge],['охват seed',n.prio_reach],['PageRank',n.prio_pr],['посредничество',n.prio_btw],['флаги',n.prio_flags]];
   const inList=checklist.some(x=>x.gid===g);
@@ -285,7 +290,9 @@ function renderCard(g){
     <div>получено / отправлено</div><div>${kzt(n.in_kzt)} / ${kzt(n.out_kzt)} KZT</div>
     <div>плательщиков / получателей</div><div>${n.in_deg} / ${n.out_deg}</div>
     <div>доля пропуска (out/in)</div><div>${n.pass_through==null?'—':pct(Math.min(n.pass_through,99))}${n.is_seed?' <span class="muted">(seed: некорректно)</span>':''}</div>
-    <div>seed «дотягиваются»</div><div>${n.seed_reach} (прямых seed-плательщиков ${n.n_seed_payers})</div>
+    <div>от скольких seed доходят деньги</div><div>${n.seed_reach} по хронологии переводов <span class="muted">(без учёта дат ${n.seed_reach_static}; прямых seed-плательщиков ${n.n_seed_payers})</span></div>
+    <div>переводов вход / выход</div><div>${n.in_tx} / ${n.out_tx}${n.in_tx?' · ср. входящий чек '+kzt(n.in_kzt/n.in_tx):''}</div>
+    <div>доля входа от seed-цепочки</div><div>${pct(n.seed_share_in)}</div>
     <div>сводит новых seed-потоков</div><div>${n.merge_gain} (ветвей-агрегатов ${n.n_agg_payers})</div>
     <div>деньги из seed-цепочки</div><div>${kzt(n.seed_traced_in_kzt)}</div>
     <div>сквозной пропуск ≤2 дн</div><div>${pct(n.fast_out_share)}${n.median_lag_days!=null?' · медиан. лаг '+n.median_lag_days+' дн':''}</div>

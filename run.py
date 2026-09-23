@@ -54,12 +54,12 @@ def main():
     G = features.build_graph(edges, nodes)
     df = features.structural(G, nodes)
     tick("граф и структурные метрики")
-    df = features.provenance(G, df)
+    df = features.provenance(G, df, tx)
     tick("происхождение денег (seed_reach, merge_gain, трассировка)")
     df = features.temporal(tx, df, th.fast_days)
     df = features.anomalies(tx, df, th)
     tick("временные паттерны и аномалии")
-    df, bmodel = boundary.fit_boundary_model(df)
+    df, bmodel = boundary.fit_boundary_model(df, tx)
     tick("модель обрыва 4-го колена")
     df, cyc = analysis.cycles(G, df)
     rts = analysis.routes(G, tx)
@@ -74,7 +74,7 @@ def main():
     ctab = clusters.cluster_table(G, df, stab)
     tick("приоритеты, топ-лист, таблица кластеров")
     res = analysis.resilience(G, df)
-    gp = analysis.gaps(df)
+    gp = analysis.gaps(df, th)
     tick("устойчивость сети и белые пятна")
 
     export.write_all(out, df, ctab, top, {"cycles": cyc, "routes": rts, "resilience": res, "gaps": gp})
@@ -108,8 +108,11 @@ def main():
 
     print("\nРОЛИ:", ", ".join(f"{ROLE_RU[k]}={v}" for k, v in role_counts.items()))
     if "cv_auc_mean" in bmodel:
-        print(f"МОДЕЛЬ ОБРЫВА [{bmodel['status']}]: AUC={bmodel['cv_auc_mean']:.3f}, ожидаемо настоящих стоков среди "
-              f"{bmodel['n_truncated']} обрезанных ≈ {bmodel['expected_true_terminals']:.0f}")
+        sh = bmodel.get("shift_auc_depth12_to_3")
+        print(f"МОДЕЛЬ ОБРЫВА [{bmodel['status']}]: CV AUC={bmodel['cv_auc_mean']:.3f}, "
+              f"перенос 1–2→3 колено AUC={sh:.3f}, " if sh is not None else
+              f"МОДЕЛЬ ОБРЫВА [{bmodel['status']}]: CV AUC={bmodel['cv_auc_mean']:.3f}, ", end="")
+        print(f"ожидаемо настоящих стоков среди {bmodel['n_truncated']} обрезанных ≈ {bmodel['expected_true_terminals']:.0f}")
     print(f"КЛАСТЕРОВ: {report['n_clusters']} (с >1 seed: {report['clusters_multi_seed']}); циклов: {len(cyc)}")
     print(f"ГОТОВО за {report['total_sec']} с → {out.resolve()}")
     if not a.no_viewer:

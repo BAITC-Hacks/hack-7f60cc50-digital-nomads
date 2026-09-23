@@ -62,28 +62,66 @@ def structural(G: nx.DiGraph, nodes: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def provenance(G: nx.DiGraph, df: pd.DataFrame, max_iter: int = 30) -> pd.DataFrame:
-    """Откуда пришли деньги — ключевой блок кейса."""
+def temporal_reach(tx: pd.DataFrame, seeds) -> dict:
+    """gid → множество seed, от которых к узлу ведёт ХРОНОЛОГИЧЕСКИ допустимая цепочка переводов:
+    каждый следующий перевод не раньше предыдущего (даты дневные, поэтому один день допускается).
+    Статический путь в графе этого не гарантирует: A→B 20-го и B→C 5-го — не движение одних денег."""
+    t = tx[["src", "dst", "date"]].copy()
+    t["day"] = pd.to_datetime(t.date).dt.normalize()
+    t = t.sort_values("day")
+    days = t.day.to_numpy()
+    src, dst = t.src.to_numpy(), t.dst.to_numpy()
+    bounds = np.flatnonzero(np.r_[True, days[1:] != days[:-1], True])   # границы групп одного дня
+    reach = defaultdict(set)
+    carried = defaultdict(set)           # (u, v) → seed, чьи деньги u мог передать v (дошли до u не позже перевода)
+    for s in seeds:
+        arrived = {s}                    # узлы, куда деньги seed уже дошли к текущему дню
+        for a, b in zip(bounds[:-1], bounds[1:]):
+            changed = True
+            while changed:               # цепочки внутри одного дня: A→B и B→C в тот же день
+                changed = False
+                for u, v in zip(src[a:b], dst[a:b]):
+                    if u in arrived:
+                        carried[(u, v)].add(s)
+                        if v not in arrived:
+                            arrived.add(v)
+                            changed = True
+        for v in arrived - {s}:
+            reach[v].add(s)
+    return reach, carried
+
+
+def provenance(G: nx.DiGraph, df: pd.DataFrame, tx: pd.DataFrame = None, max_iter: int = 30) -> pd.DataFrame:
+    """Откуда пришли деньги — ключевой блок кейса.
+
+    seed_reach считается по хронологии переводов (temporal_reach), если переданы транзакции;
+    статический охват по путям графа сохраняется справочно как seed_reach_static."""
     seeds = set(df.loc[df.is_seed, "gid"])
-    reach = defaultdict(set)                      # gid -> множество seed, из которых есть путь
+    static = defaultdict(set)                     # gid -> seed, из которых есть путь в графе (без учёта дат)
     for s in seeds:
         for v in nx.descendants(G, s):
-            reach[v].add(s)
+            static[v].add(s)
+    if tx is not None:
+        reach, carried = temporal_reach(tx, seeds)
+    else:
+        reach, carried = static, {(u, v): static.get(u, set()) | ({u} & seeds) for u, v in G.edges}
     df["seed_reach"] = df.gid.map(lambda v: len(reach.get(v, ()))).astype(int)
+    df["seed_reach_static"] = df.gid.map(lambda v: len(static.get(v, ()))).astype(int)
+    df["reach_seeds"] = df.gid.map(lambda v: ";".join(str(s) for s in sorted(reach.get(v, ()))))
 
-    # merge_gain: сколько seed-потоков узел сводит вместе сверх самого «богатого» плательщика.
+    # merge_gain: сколько seed-потоков узел сводит вместе сверх самой «богатой» входящей ветви.
+    # Ветвь u→v несёт только тех seed, чьи деньги дошли до u не позже перевода u→v (carried).
     # Дроп распределителя наследует охват плательщика → 0. Консолидатор 6 seed → 6.
-    def reach_incl(u):
-        return len(reach.get(u, ())) + (1 if u in seeds else 0)
     gain, agg = {}, {}
     for v in G.nodes:
         preds = list(G.predecessors(v))
         if not preds:
             gain[v], agg[v] = 0, 0
             continue
-        gain[v] = max(0, len(reach.get(v, ())) - max(reach_incl(u) for u in preds))
+        per_branch = [len(carried.get((u, v), ())) for u in preds]
+        gain[v] = max(0, len(reach.get(v, ())) - max(per_branch))
         # плательщики, которые сами уже несут деньги ≥2 seed — «консолидация второго уровня»
-        agg[v] = sum(1 for u in preds if reach_incl(u) >= 2)
+        agg[v] = sum(1 for n in per_branch if n >= 2)
     df["merge_gain"] = df.gid.map(gain).fillna(0).astype(int)
     df["n_agg_payers"] = df.gid.map(agg).fillna(0).astype(int)
 

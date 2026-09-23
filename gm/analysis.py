@@ -62,20 +62,25 @@ def _reach_pairs(G, seeds):
 
 def resilience(G, df, ns=(0, 5, 10, 20, 50), random_runs=10, rng_seed=0):
     """Что будет с сетью, если изъять топ-N узлов. Метрика — доля пар (seed → узел), между
-    которыми остаётся денежный путь: насколько «перерезаны» каналы движения денег."""
+    которыми остаётся денежный путь: насколько «перерезаны» каналы движения денег.
+
+    Честное сравнение: кроме «наивных» PageRank/суммы входа сюда входят сильные чисто структурные
+    базовые линии (betweenness, out_deg, hub). Они ОПТИМАЛЬНЫ для разрыва путей и обычно обгоняют
+    priority: priority ранжирует «кого расследовать» (роль, деньги от seed, объяснимость), а не
+    «что удалить из графа». Метрика частично пересекается с seed-признаками priority, поэтому
+    подбирать веса под неё нельзя — это был бы замкнутый круг."""
     seeds = list(df.loc[df.is_seed, "gid"])
+    seed_set = set(seeds)
     base = _reach_pairs(G, seeds) or 1
-    order = {
-        "priority": list(df.sort_values("priority_score", ascending=False).gid),
-        "pagerank": list(df.sort_values("pagerank", ascending=False).gid),
-        "in_kzt": list(df.sort_values("in_kzt", ascending=False).gid),
-    }
+    order = {k: list(df.sort_values(c, ascending=False).gid) for k, c in [
+        ("priority", "priority_score"), ("pagerank", "pagerank"), ("in_kzt", "in_kzt"),
+        ("betweenness", "betweenness"), ("out_deg", "out_deg"), ("hub", "hub")]}
     non_seed = list(df.loc[~df.is_seed, "gid"])
     rng = np.random.default_rng(rng_seed)
     rows = []
     for n in ns:
         for name, lst in order.items():
-            rm = [x for x in lst if x not in set(seeds)][:n]      # seed не изымаем — они уже известны
+            rm = [x for x in lst if x not in seed_set][:n]      # seed не изымаем — они уже известны
             H = G.copy()
             H.remove_nodes_from(rm)
             rows.append(_res_row(H, seeds, base, name, n))
@@ -101,31 +106,33 @@ def _res_row(H, seeds, base, strategy, n):
 
 # ---------------------------------------------------------------- белые пятна / следующий запрос
 
-def gaps(df, top_k=15):
+def gaps(df, th, top_k=15):
     rows = []
-    tr = df[df.truncated_by_depth & (df.p_continue >= 0.5)].sort_values("in_kzt", ascending=False).head(top_k)
+    tr = df[df.truncated_by_depth & (df.p_continue >= th.terminal_max_p_continue)].sort_values("in_kzt", ascending=False).head(top_k)
     for r in tr.itertuples(index=False):
         rows.append((r.gid, "обрыв 4-го колена",
                      f"получил {fmt_kzt(r.in_kzt)}, P(ушли дальше)={r.p_continue:.2f}",
                      "Выгрузить исходящие переводы (5-е колено)"))
     top = df.sort_values("priority_score", ascending=False).head(top_k)
     for r in top.itertuples(index=False):
-        if r.out_before_any_in_kzt > 0 or (not pd.isna(r.pass_through) and r.pass_through > 1.2):
+        if r.out_before_any_in_kzt > 0 or (not pd.isna(r.pass_through) and r.pass_through > th.transit_pass_hi):
             rows.append((r.gid, "источник вне выборки",
                          f"отдал {fmt_kzt(r.out_kzt)} при входе {fmt_kzt(r.in_kzt)}",
                          "Выгрузить ВСЕ входящие переводы клиента за период (не только от графа)"))
     st = df[df.flag_structuring]
     for r in st.itertuples(index=False):
-        rows.append((r.gid, "возможное дробление",
-                     f"{r.near_threshold_tx} входящих в диапазоне 5–10 тыс.",
-                     "Запросить транзакции < 5 000 KZT (ниже порога выгрузки)"))
+        rows.append((r.gid, "серия мелких поступлений",
+                     f"{r.near_threshold_tx} входящих в диапазоне {th.structuring_lo / 1e3:.0f}–"
+                     f"{th.structuring_hi / 1e3:.0f} тыс. (5 000 — порог выгрузки, не регуляторный)",
+                     "Запросить транзакции < 5 000 KZT: вероятна ещё более мелкая розничная часть сбора"))
     term = df[(df.role == "terminal") & (df.terminal_kind == "observed")].sort_values("in_kzt", ascending=False).head(top_k)
     for r in term.itertuples(index=False):
-        rows.append((r.gid, "деньги «осели»",
-                     f"получил {fmt_kzt(r.in_kzt)}, внутрибанковских исходящих нет",
+        rows.append((r.gid, "деньги не ушли внутри банка",
+                     f"получил {fmt_kzt(r.in_kzt)}, внутрибанковских исходящих ≥5 000 нет",
                      "Проверить межбанковские переводы, снятие наличных, карточные операции"))
     iso = df[(df.in_deg == 0) & (df.out_deg == 0)]
     if len(iso):
-        rows.append(("—", "seed вне сети", f"{len(iso)} клиентов без переводов ≥5 000 внутри банка",
-                     "Запросить межбанк/наличные и операции < 5 000 KZT по этим seed"))
+        n_seed = int(iso.is_seed.sum())
+        rows.append(("—", "клиенты вне сети", f"{len(iso)} клиентов ({n_seed} seed) без переводов ≥5 000 внутри банка",
+                     "Запросить межбанк/наличные и операции < 5 000 KZT по этим клиентам"))
     return pd.DataFrame(rows, columns=["gid", "gap", "observation", "next_request"])

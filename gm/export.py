@@ -11,13 +11,15 @@ from .config import ROLES
 NODE_COLS = ["gid", "role", "role_score", "cluster_id", "priority_score", "evidence"]
 CLUSTER_COLS = ["cluster_id", "n_nodes", "n_seed", "sum_kzt_internal", "top_gids", "hypothesis"]
 TOP_COLS = ["rank", "gid", "role", "priority_score", "why"]
+NA_NUM = -1   # «не применимо» в числовых колонках nodes_roles.csv
 
 EXTRA_NODE_COLS = [
     "is_seed", "depth", "component", "in_deg", "out_deg", "in_kzt", "out_kzt", "in_tx", "out_tx",
-    "pass_through", "fan_ratio", "seed_reach", "merge_gain", "n_agg_payers", "n_seed_payers", "seed_traced_in_kzt",
+    "pass_through", "fan_ratio", "seed_reach", "seed_reach_static", "merge_gain", "n_agg_payers", "n_seed_payers", "seed_traced_in_kzt",
     "pagerank", "hub", "authority", "betweenness", "truncated_by_depth", "p_continue", "terminal_kind",
     "fast_out_share", "median_lag_days", "max_payers_same_day", "near_threshold_tx", "flag_structuring",
     "n_cycles", "anomaly_z", "anomaly_feature", "flag_anomaly", "coord_criteria",
+    "pattern", "seed_share_in", "weak_seed_link", "priority_rank",
     "prio_role", "prio_traced", "prio_merge", "prio_reach", "prio_pr", "prio_btw", "prio_flags",
 ]
 
@@ -27,6 +29,14 @@ def write_all(out: Path, df, clusters, top, extras: dict):
     nr = df[NODE_COLS + EXTRA_NODE_COLS].copy()
     nr["gid"] = nr.gid.astype("int64")
     nr["cluster_id"] = nr.cluster_id.astype(int)
+    # ТЗ: «все колонки заполнены». Неприменимые значения — явные, а не пустые ячейки:
+    #   числа → -1 (напр. pass_through у клиента без входящих, p_continue у узла не на 4-м колене),
+    #   строки → "none". Расшифровка — в README, раздел «Схема выгрузок».
+    for c in nr.columns:
+        if nr[c].dtype.kind in "fi":
+            nr[c] = nr[c].fillna(NA_NUM)
+        elif nr[c].dtype == object or pd.api.types.is_string_dtype(nr[c]):
+            nr[c] = nr[c].fillna("none").replace("", "none")
     nr.to_csv(out / "nodes_roles.csv", index=False)
     clusters.to_csv(out / "clusters.csv", index=False)
     top.to_csv(out / "top_nodes.csv", index=False)
@@ -47,8 +57,11 @@ def validate(out: Path, n_nodes_expected: int, all_gids: set):
     if nr.gid.duplicated().any():
         errs.append("nodes_roles: дубли gid")
     for c in NODE_COLS:
-        if c not in nr or nr[c].isna().any():
-            errs.append(f"nodes_roles: пустые значения в {c}")
+        if c not in nr:
+            errs.append(f"nodes_roles: нет обязательной колонки {c}")
+    empty = [c for c in nr.columns if nr[c].isna().any()]
+    if empty:
+        errs.append(f"nodes_roles: пустые значения в {empty}")
     if not nr.role.isin(ROLES).all():
         errs.append(f"nodes_roles: роли вне словаря {set(nr.role) - set(ROLES)}")
     if (nr.evidence.astype(str).str.len() == 0).any() or (nr.evidence.astype(str).str.len() > 200).any():
@@ -62,7 +75,7 @@ def validate(out: Path, n_nodes_expected: int, all_gids: set):
         errs.append("clusters: схема/пустые значения")
     if not set(nr.cluster_id) <= set(cl.cluster_id):
         errs.append("clusters: есть cluster_id без строки в clusters.csv")
-    if len(tp) < 20 or list(tp.columns[:5]) != TOP_COLS:
+    if len(tp) < min(20, n_nodes_expected) or list(tp.columns[:5]) != TOP_COLS:
         errs.append("top_nodes: < 20 строк или неверная схема")
     if not tp.priority_score.is_monotonic_decreasing:
         errs.append("top_nodes: не отсортирован по priority_score")
@@ -144,7 +157,8 @@ def viewer_payload(G, df, clusters, top, reports: dict, tx=None):
             "n_seed_payers", "seed_traced_in_kzt", "pagerank", "betweenness", "truncated_by_depth",
             "p_continue", "fast_out_share", "median_lag_days", "max_payers_same_day", "near_threshold_tx",
             "n_cycles", "anomaly_z", "flag_anomaly", "flag_structuring", "component", "n_agg_payers",
-            "coord_criteria", "terminal_kind", "out_before_any_in_kzt",
+            "coord_criteria", "terminal_kind", "out_before_any_in_kzt", "in_tx", "out_tx",
+            "pattern", "seed_share_in", "weak_seed_link", "priority_rank", "seed_reach_static", "reach_seeds",
             "prio_role", "prio_traced", "prio_merge", "prio_reach", "prio_pr", "prio_btw", "prio_flags"]
     nd = df[keep].copy()
     nd["x"] = nd.gid.map(lambda g: round(pos[g][0], 1))

@@ -77,7 +77,7 @@ def cluster_table(G, df, stab):
             "n_seed": int(g.is_seed.sum()),
             "sum_kzt_internal": round(internal, 2),
             "top_gids": ";".join(str(x) for x in top.gid),
-            "hypothesis": _hypothesis(c, g, roles, internal, top),
+            "hypothesis": _hypothesis(c, g, roles, internal, top, stab.get(int(c), 1.0)),
             "sum_kzt_in_external": round(ext_in, 2),
             "sum_kzt_out_external": round(ext_out, 2),
             "stability": stab.get(int(c), np.nan),
@@ -89,23 +89,33 @@ def cluster_table(G, df, stab):
     return t
 
 
-def _hypothesis(c, g, roles, internal, top):
+def _hypothesis(c, g, roles, internal, top, stability=1.0):
+    h = _hypothesis_core(c, g, roles, internal, top)
+    if c != 0 and stability < 0.5:
+        h += f". Кластер неустойчив (воспроизводимость {stability:.2f}) — границы условны"
+    return h
+
+
+def _hypothesis_core(c, g, roles, internal, top):
     n, ns = len(g), int(g.is_seed.sum())
     if c == 0:
         return (f"Вне сети: {n} клиент(ов) без переводов ≥5 000 KZT внутри банка. "
                 f"Гипотеза: наличные, межбанк или дробление ниже порога — нужен отдельный запрос")
     lead = top.iloc[0]
-    lead_s = f"{lead.gid} ({ROLE_RU[lead.role]})"
+    lead_s = f"{lead.gid} ({ROLE_RU[lead.role]}, №1 по приоритету в кластере)"
     trunc = g.truncated_by_depth.mean()
     tail = f"; {trunc * 100:.0f}% узлов на границе выгрузки" if trunc >= 0.4 else ""
-    if roles.get("coordinator"):
+    if roles.get("coordinator") and ns >= 1:
         return (f"Признаки управляющего звена: {ns} seed, ключевой узел {lead_s}; "
                 f"внутренний оборот {fmt_kzt(internal)}. Проверить как возможную вершину схемы{tail}")
+    if roles.get("coordinator"):
+        return (f"Узел концентрации потоков {lead_s} без seed внутри кластера; оборот {fmt_kzt(internal)}. "
+                f"Связь с seed только через внешние рёбра — сначала исключить легальный бизнес (KYC){tail}")
     if roles.get("consolidator") and ns >= 2:
-        return (f"Ячейка сбора: {ns} seed → {roles['consolidator']} консолидатор(а), ведущий {lead_s}; "
+        return (f"Ячейка сбора: {ns} seed → {roles['consolidator']} консолидатор(а); {lead_s}; "
                 f"оборот {fmt_kzt(internal)}{tail}")
     if roles.get("distributor"):
-        return (f"Распределительная ветка: веер от {lead_s}; {roles.get('peripheral', 0)} периферийных "
+        return (f"Распределительная ветка: {lead_s}; {roles.get('peripheral', 0)} периферийных "
                 f"получателей — возможные дропы/выплаты{tail}")
     if roles.get("transit", 0) >= 2:
         return f"Транзитная цепочка ({roles['transit']} транзитных узлов), ведущий {lead_s}{tail}"
