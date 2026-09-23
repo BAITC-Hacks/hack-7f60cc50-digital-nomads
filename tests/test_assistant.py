@@ -44,6 +44,7 @@ PAYLOAD = {
 class FakeLLM(BaseHTTPRequestHandler):
     """Шаг 1: вызвать common_receivers + несуществующую функцию. Шаг 2: ответ по tool_result."""
     seen = []
+    hallucinate = False
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
@@ -70,6 +71,8 @@ class FakeLLM(BaseHTTPRequestHandler):
             top = got["receivers"][0]["gid"]
             err = json.loads(results[1]["content"])["error"]
             text = f"Деньги обоих seed сходятся на {top}. (ошибка инструмента обработана: {err[:20]})"
+            if FakeLLM.hallucinate:   # «модель» выдумала gid и исказила существующий в одной цифре
+                text += f" Также связан 100000000000000099 и {str(S1)[:-1]}9."
             out = ({"content": [{"type": "text", "text": text}], "stop_reason": "end_turn"} if anthropic
                    else {"choices": [{"message": {"role": "assistant", "content": text}}]})
         data = json.dumps(out, ensure_ascii=False).encode()
@@ -104,11 +107,25 @@ def test_llm_anthropic_tool_loop():
     r = _run_provider("anthropic")
     assert r["mode"] == "LLM (anthropic)", r
     assert r["tools"] == ["common_receivers", "no_such_tool"]
+    assert r["grounding"]["ok"], r["grounding"]
     # консолидатор C — единственный общий получатель на 1 шаг; K тоже достижим, но C ближе и сортируется выше по охвату
     assert str(C) in r["answer"] or str(K) in r["answer"]
     assert "ошибка инструмента обработана" in r["answer"]
     first = FakeLLM.seen[0][1]
     assert {t["name"] for t in first["tools"]} == assistant.TOOL_NAMES and "input_schema" in first["tools"][0]
+
+
+def test_grounding_catches_invented_gids():
+    FakeLLM.hallucinate = True
+    try:
+        r = _run_provider("anthropic")
+    finally:
+        FakeLLM.hallucinate = False
+    g = r["grounding"]
+    assert not g["ok"]
+    assert 100000000000000099 in g["not_in_graph"]
+    assert int(str(S1)[:-1] + "9") in g["not_in_graph"]
+    assert g["verified"] and all(x in (C, K) for x in g["verified"])
 
 
 def test_llm_openai_tool_loop():

@@ -115,9 +115,11 @@ def gaps(df, th, top_k=15):
                      "Выгрузить исходящие переводы (5-е колено)"))
     top = df.sort_values("priority_score", ascending=False).head(top_k)
     for r in top.itertuples(index=False):
-        if r.out_before_any_in_kzt > 0 or (not pd.isna(r.pass_through) and r.pass_through > th.transit_pass_hi):
-            rows.append((r.gid, "источник вне выборки",
-                         f"отдал {fmt_kzt(r.out_kzt)} при входе {fmt_kzt(r.in_kzt)}",
+        over = not pd.isna(r.pass_through) and r.pass_through > th.transit_pass_hi
+        if r.out_before_any_in_kzt > 0 or over:
+            obs = (f"отдал {fmt_kzt(r.out_kzt)} при видимом входе {fmt_kzt(r.in_kzt)}" if over else
+                   f"отправил {fmt_kzt(r.out_before_any_in_kzt)} раньше первого поступления в графе")
+            rows.append((r.gid, "источник вне выборки", obs,
                          "Выгрузить ВСЕ входящие переводы клиента за период (не только от графа)"))
     st = df[df.flag_structuring]
     for r in st.itertuples(index=False):

@@ -6,3 +6,4 @@ data/*.parquet
 .env
 .venv/
 out_ui/
+data_ci/

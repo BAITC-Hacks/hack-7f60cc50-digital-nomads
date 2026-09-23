@@ -24,7 +24,7 @@ for _s in (sys.stdout, sys.stderr):
         _s.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gm import assistant  # noqa: E402
+from gm import assistant, investigate  # noqa: E402
 
 
 MAX_BODY = 64 * 1024
@@ -79,7 +79,8 @@ def make_handler(out: Path, gi, port: int):
         def do_POST(self):
             if not self._host_ok():
                 return
-            if urlparse(self.path).path != "/api/ask":
+            route = urlparse(self.path).path
+            if route not in ("/api/ask", "/api/investigate"):
                 return self._send(404, {"error": "not found"})
             origin = self.headers.get("Origin")
             if origin is not None and origin not in allowed_origins:
@@ -93,9 +94,25 @@ def make_handler(out: Path, gi, port: int):
             if not 0 <= n <= MAX_BODY:
                 return self._send(413, {"error": f"тело запроса должно быть от 0 до {MAX_BODY} байт"})
             try:
-                q = json.loads((self.rfile.read(n) or b"{}").decode("utf-8")).get("question", "")
+                body = json.loads((self.rfile.read(n) or b"{}").decode("utf-8"))
+                if not isinstance(body, dict):
+                    raise AttributeError
             except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
-                return self._send(400, {"error": 'ожидается JSON в UTF-8: {"question": "..."}'})
+                return self._send(400, {"error": 'ожидается JSON-объект в UTF-8'})
+            if route == "/api/investigate":
+                gid, seeds = body.get("gid"), body.get("seeds")
+                if gid is not None and not GID_RE.fullmatch(str(gid)):
+                    return self._send(400, {"error": "gid должен быть числом (до 20 цифр)"})
+                if gid is None and not (isinstance(seeds, list) and seeds and len(seeds) <= 50
+                                        and all(GID_RE.fullmatch(str(x)) for x in seeds)):
+                    return self._send(400, {"error": "нужен gid или seeds — список от 1 до 50 gid"})
+                try:
+                    return self._send(200, investigate.investigate(gi, gid=gid, seeds=seeds))
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                except Exception as e:
+                    return self._send(500, {"error": f"внутренняя ошибка: {type(e).__name__}: {e}"})
+            q = body.get("question", "")
             if not isinstance(q, str) or not q.strip() or len(q) > MAX_QUESTION:
                 return self._send(400, {"error": f"question — непустая строка до {MAX_QUESTION} символов"})
             try:

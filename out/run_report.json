@@ -61,9 +61,208 @@
     "n_train": 1723,
     "base_rate_has_out": 0.3737666860127684,
     "features": "только переводы от более мелких колён + контекст плательщиков (без утечки)",
+    "min_auc": 0.6,
     "status": "ok",
-    "cv_auc_mean": 0.6776862208947613,
+    "cv_auc_mean": 0.6589744069445485,
     "shift_auc_depth12_to_3": 0.6599044763631292,
+    "calibration": {
+      "method": "sigmoid",
+      "rule": "isotonic только при снижении Brier ≥ 1%, иначе Platt (sigmoid)",
+      "brier": {
+        "raw": 0.2166,
+        "sigmoid": 0.2166,
+        "isotonic": 0.2153
+      },
+      "ece": 0.0484,
+      "ece_raw": 0.0476,
+      "reliability": [
+        {
+          "p_mean": 0.1717,
+          "frac_continue": 0.1214,
+          "n": 173
+        },
+        {
+          "p_mean": 0.2108,
+          "frac_continue": 0.1919,
+          "n": 172
+        },
+        {
+          "p_mean": 0.2746,
+          "frac_continue": 0.4593,
+          "n": 172
+        },
+        {
+          "p_mean": 0.333,
+          "frac_continue": 0.2791,
+          "n": 172
+        },
+        {
+          "p_mean": 0.364,
+          "frac_continue": 0.3023,
+          "n": 172
+        },
+        {
+          "p_mean": 0.3906,
+          "frac_continue": 0.3699,
+          "n": 173
+        },
+        {
+          "p_mean": 0.4176,
+          "frac_continue": 0.4128,
+          "n": 172
+        },
+        {
+          "p_mean": 0.4478,
+          "frac_continue": 0.4826,
+          "n": 172
+        },
+        {
+          "p_mean": 0.4971,
+          "frac_continue": 0.4826,
+          "n": 172
+        },
+        {
+          "p_mean": 0.6759,
+          "frac_continue": 0.6358,
+          "n": 173
+        }
+      ],
+      "reliability_raw": [
+        {
+          "p_mean": 0.1699,
+          "frac_continue": 0.1272,
+          "n": 173
+        },
+        {
+          "p_mean": 0.2085,
+          "frac_continue": 0.186,
+          "n": 172
+        },
+        {
+          "p_mean": 0.2714,
+          "frac_continue": 0.4535,
+          "n": 172
+        },
+        {
+          "p_mean": 0.3284,
+          "frac_continue": 0.2674,
+          "n": 172
+        },
+        {
+          "p_mean": 0.3594,
+          "frac_continue": 0.3256,
+          "n": 172
+        },
+        {
+          "p_mean": 0.386,
+          "frac_continue": 0.3584,
+          "n": 173
+        },
+        {
+          "p_mean": 0.4125,
+          "frac_continue": 0.407,
+          "n": 172
+        },
+        {
+          "p_mean": 0.4424,
+          "frac_continue": 0.4942,
+          "n": 172
+        },
+        {
+          "p_mean": 0.4925,
+          "frac_continue": 0.4826,
+          "n": 172
+        },
+        {
+          "p_mean": 0.6748,
+          "frac_continue": 0.6358,
+          "n": 173
+        }
+      ],
+      "oof_auc": 0.6589
+    },
+    "feature_importance_ci": {
+      "log_in_kzt_fwd": {
+        "coef": 0.508,
+        "ci95": [
+          -0.058,
+          1.042
+        ],
+        "sign_stable": 0.92,
+        "significant": false,
+        "meaning": "лог. входящий оборот (от более мелких колён)"
+      },
+      "in_deg_fwd": {
+        "coef": 0.106,
+        "ci95": [
+          -0.03,
+          0.261
+        ],
+        "sign_stable": 0.92,
+        "significant": false,
+        "meaning": "число плательщиков"
+      },
+      "log_in_tx_fwd": {
+        "coef": -0.003,
+        "ci95": [
+          -0.332,
+          0.45
+        ],
+        "sign_stable": 0.43,
+        "significant": false,
+        "meaning": "лог. число входящих переводов"
+      },
+      "log_mean_ticket_fwd": {
+        "coef": -0.563,
+        "ci95": [
+          -1.067,
+          -0.056
+        ],
+        "sign_stable": 0.985,
+        "significant": true,
+        "meaning": "лог. средний входящий чек"
+      },
+      "active_in_days_fwd": {
+        "coef": 0.247,
+        "ci95": [
+          -0.08,
+          0.58
+        ],
+        "sign_stable": 0.955,
+        "significant": false,
+        "meaning": "дней с поступлениями"
+      },
+      "days_left_fwd": {
+        "coef": 0.049,
+        "ci95": [
+          -0.049,
+          0.154
+        ],
+        "sign_stable": 0.805,
+        "significant": false,
+        "meaning": "дней до конца периода после последнего поступления"
+      },
+      "payer_outdeg_mean": {
+        "coef": -0.458,
+        "ci95": [
+          -0.575,
+          -0.327
+        ],
+        "sign_stable": 1.0,
+        "significant": true,
+        "meaning": "среднее число получателей у плательщиков"
+      },
+      "max_share_of_payer_out": {
+        "coef": -0.062,
+        "ci95": [
+          -0.164,
+          0.058
+        ],
+        "sign_stable": 0.845,
+        "significant": false,
+        "meaning": "макс. доля исходящих плательщика, пришедшая узлу"
+      }
+    },
     "coefficients_std": {
       "log_in_kzt_fwd": 0.508,
       "in_deg_fwd": 0.106,
@@ -74,12 +273,112 @@
       "payer_outdeg_mean": -0.458,
       "max_share_of_payer_out": -0.062
     },
+    "threshold_curve": [
+      {
+        "threshold": 0.15,
+        "n_selected_cv": 9,
+        "precision_cv": 0.8889,
+        "recall_cv": 0.0074,
+        "n_depth4": 0,
+        "expected_precision_depth4": null
+      },
+      {
+        "threshold": 0.2,
+        "n_selected_cv": 243,
+        "precision_cv": 0.893,
+        "recall_cv": 0.2011,
+        "n_depth4": 0,
+        "expected_precision_depth4": null
+      },
+      {
+        "threshold": 0.25,
+        "n_selected_cv": 346,
+        "precision_cv": 0.841,
+        "recall_cv": 0.2697,
+        "n_depth4": 0,
+        "expected_precision_depth4": null
+      },
+      {
+        "threshold": 0.3,
+        "n_selected_cv": 514,
+        "precision_cv": 0.7451,
+        "recall_cv": 0.355,
+        "n_depth4": 1,
+        "expected_precision_depth4": 0.7135
+      },
+      {
+        "threshold": 0.35,
+        "n_selected_cv": 678,
+        "precision_cv": 0.7419,
+        "recall_cv": 0.4662,
+        "n_depth4": 35,
+        "expected_precision_depth4": 0.6676
+      },
+      {
+        "threshold": 0.4,
+        "n_selected_cv": 1006,
+        "precision_cv": 0.7147,
+        "recall_cv": 0.6664,
+        "n_depth4": 151,
+        "expected_precision_depth4": 0.635
+      },
+      {
+        "threshold": 0.45,
+        "n_selected_cv": 1307,
+        "precision_cv": 0.6832,
+        "recall_cv": 0.8276,
+        "n_depth4": 284,
+        "expected_precision_depth4": 0.6071
+      },
+      {
+        "threshold": 0.5,
+        "n_selected_cv": 1479,
+        "precision_cv": 0.6646,
+        "recall_cv": 0.911,
+        "n_depth4": 366,
+        "expected_precision_depth4": 0.5898
+      },
+      {
+        "threshold": 0.55,
+        "n_selected_cv": 1548,
+        "precision_cv": 0.655,
+        "recall_cv": 0.9398,
+        "n_depth4": 389,
+        "expected_precision_depth4": 0.583
+      },
+      {
+        "threshold": 0.6,
+        "n_selected_cv": 1613,
+        "precision_cv": 0.6491,
+        "recall_cv": 0.9703,
+        "n_depth4": 412,
+        "expected_precision_depth4": 0.5743
+      }
+    ],
+    "recommended_threshold": 0.35,
+    "required_precision": 0.7262,
+    "degraded_to_baseline": false,
     "n_truncated": 444,
-    "expected_true_terminals": 247.57751471992705
+    "expected_true_terminals": 245.27671957495593,
+    "terminal_threshold": {
+      "configured": 0.35,
+      "recommended": 0.35,
+      "rule": "наибольший порог с precision_cv ≥ доля стоков + 0.1",
+      "required_precision": 0.7262,
+      "at_configured": {
+        "threshold": 0.35,
+        "n_selected_cv": 678,
+        "precision_cv": 0.7419,
+        "recall_cv": 0.4662,
+        "n_depth4": 35,
+        "expected_precision_depth4": 0.6676
+      },
+      "agrees": true
+    }
   },
   "role_counts": {
-    "peripheral": 1705,
-    "terminal": 419,
+    "peripheral": 1715,
+    "terminal": 409,
     "distributor": 56,
     "transit": 34,
     "consolidator": 30,
@@ -89,18 +388,19 @@
   "clusters_multi_seed": 10,
   "n_cycles": 1541,
   "timings_sec": {
-    "загрузка и проверка данных": 0.07,
-    "граф и структурные метрики": 1.6,
-    "происхождение денег (seed_reach, merge_gain, трассировка)": 0.21,
-    "временные паттерны и аномалии": 0.08,
-    "модель обрыва 4-го колена": 0.16,
-    "циклы и маршруты": 0.19,
-    "роли, role_score, evidence": 0.39,
-    "кластеризация Louvain + устойчивость": 1.1,
-    "приоритеты, топ-лист, таблица кластеров": 0.29,
-    "устойчивость сети и белые пятна": 1.79,
-    "запись и проверка выгрузок": 0.25,
-    "экран просмотра viewer.html": 1.77
+    "загрузка и проверка данных": 0.29,
+    "граф и структурные метрики": 2.02,
+    "происхождение денег (seed_reach, merge_gain, трассировка)": 0.23,
+    "временные паттерны и аномалии": 0.1,
+    "модель обрыва 4-го колена": 3.99,
+    "циклы и маршруты": 0.23,
+    "роли, role_score, evidence": 0.44,
+    "кластеризация Louvain + устойчивость": 1.32,
+    "приоритеты, топ-лист, таблица кластеров": 0.37,
+    "устойчивость сети и белые пятна": 2.18,
+    "запись и проверка выгрузок": 0.2,
+    "экран просмотра viewer.html": 1.97,
+    "досье на топ-5 (out/cases/)": 0.22
   },
-  "total_sec": 7.9
+  "total_sec": 13.56
 }

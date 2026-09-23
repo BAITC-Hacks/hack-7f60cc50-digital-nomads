@@ -18,3 +18,4 @@ test:
 	$(PY) tests/test_pipeline.py
 	$(PY) tests/test_assistant.py
 	$(PY) tests/test_serve.py
+	$(PY) tests/test_investigate.py

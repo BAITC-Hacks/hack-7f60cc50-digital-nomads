@@ -21,3 +21,8 @@ jobs:
       - run: python tests/test_pipeline.py
       - run: python tests/test_assistant.py
       - run: python tests/test_serve.py
+      - run: python tests/test_investigate.py
+      - name: full run on synthetic data (run.py + dossiers + schema check)
+        run: |
+          python tools/make_synthetic.py --out data_ci --csv
+          python run.py --data data_ci --out out_ci --cases 3
