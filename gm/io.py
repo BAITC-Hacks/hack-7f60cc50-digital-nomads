@@ -1,6 +1,7 @@
 """Загрузка данных и проверка консистентности (логика стартового кода организаторов + отчёт)."""
 from pathlib import Path
 
+import networkx as nx
 import pandas as pd
 
 REQUIRED = {
@@ -84,7 +85,44 @@ def sanity_check(edges, nodes, tx, verbose=True):
     rep["seed_without_outgoing"] = int(len(seeds - set(edges.src)))
     rep["depth4_zero_out"] = int(((nodes.depth == 4) & ~nodes.gid.isin(set(edges.src))).sum())
     rep["tx_below_5000"] = int((tx.sum_kzt < 5000).sum())
+    rep["tx_min_kzt"] = float(tx.sum_kzt.min()) if len(tx) else None
     rep["unknown_gids_in_edges"] = int(len(in_edges - set(nodes.gid)))
+
+    # Неполнота входящих — не ошибка данных, а свойство 4-hop-выгрузки. Считаем обе
+    # трактовки явно: 354 — узлы с наблюдаемым входом и out/in > 1 из ТЗ; ещё 23
+    # отправителя имеют нулевой видимый вход и потому не получают конечный pass_through.
+    incoming = edges.groupby("dst").sum_kzt.sum()
+    outgoing = edges.groupby("src").sum_kzt.sum()
+    flow = pd.DataFrame({"incoming": incoming, "outgoing": outgoing}).fillna(0.0)
+    has_visible_in = flow.incoming > 0
+    pass_through = flow.outgoing / flow.incoming.where(has_visible_in)
+    rep["pass_through_gt_1"] = int((pass_through > 1).sum())
+    rep["pass_through_0_8_to_1_2"] = int(pass_through.between(0.8, 1.2).sum())
+    rep["out_gt_visible_in_including_zero_in"] = int((flow.outgoing > flow.incoming).sum())
+    rep["outgoing_with_zero_visible_in"] = int(((flow.outgoing > 0) & ~has_visible_in).sum())
+
+    # Число 16 в ТЗ относится к графу рёбер: 19 seed, отсутствующие в рёбрах,
+    # рассматриваются отдельно. Если добавить их как изолированные вершины, компонент 35.
+    G = nx.DiGraph()
+    G.add_edges_from((int(r.src), int(r.dst)) for r in edges.itertuples(index=False))
+    components = sorted((len(c) for c in nx.weakly_connected_components(G)), reverse=True)
+    rep["weak_components_with_edges"] = int(len(components))
+    rep["weak_component_sizes"] = components
+    rep["weak_components_including_isolates"] = int(len(components) + rep["orphans"])
+
+    # Контрольная «базовая Louvain» из примечания ТЗ: неориентированная проекция,
+    # сырой денежный вес, seed=42. Рабочая кластеризация намеренно использует log1p-вес
+    # и отдельно группирует изоляты, поэтому её число сообществ может отличаться.
+    UG = nx.Graph()
+    for r in edges.itertuples(index=False):
+        u, v, amount = int(r.src), int(r.dst), float(r.sum_kzt)
+        if UG.has_edge(u, v):
+            UG[u][v]["sum_kzt"] += amount
+        else:
+            UG.add_edge(u, v, sum_kzt=amount)
+    communities = nx.community.louvain_communities(UG, weight="sum_kzt", resolution=1.0, seed=42)
+    rep["baseline_louvain_communities"] = int(len(communities))
+    rep["baseline_louvain_multi_seed"] = int(sum(len(c & seeds) > 1 for c in communities))
 
     if verbose:
         print("=" * 64)

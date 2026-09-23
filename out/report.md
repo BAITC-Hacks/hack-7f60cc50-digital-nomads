@@ -18,7 +18,25 @@
 - **seed_without_outgoing**: 31
 - **depth4_zero_out**: 444
 - **tx_below_5000**: 0
+- **tx_min_kzt**: 5000.0
 - **unknown_gids_in_edges**: 0
+- **pass_through_gt_1**: 354
+- **pass_through_0_8_to_1_2**: 72
+- **out_gt_visible_in_including_zero_in**: 377
+- **outgoing_with_zero_visible_in**: 23
+- **weak_components_with_edges**: 16
+- **weak_component_sizes**: [1877, 270, 17, 13, 6, 6, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2]
+- **weak_components_including_isolates**: 35
+- **baseline_louvain_communities**: 68
+- **baseline_louvain_multi_seed**: 8
+
+## Проверки методологии
+
+- **depth4_terminal_observed**: 0
+- **depth4_terminal_estimated**: 20
+- **seed_assigned_transit**: 0
+- **working_louvain_multi_seed_rows_including_cluster_0**: 10
+- **working_louvain_network_communities_multi_seed**: 9
 
 ## Роли
 
@@ -122,4 +140,4 @@
 | 20 | 0.70 | 0.96 | 0.98 | 0.29 | 0.25 | 0.42 | 0.98 |
 | 50 | 0.52 | 0.94 | 0.86 | 0.18 | 0.14 | 0.23 | 0.94 |
 
-Время полного прогона: 13.56 с
+Время полного прогона: 11.14 с

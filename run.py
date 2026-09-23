@@ -95,6 +95,19 @@ def main():
         "n_cycles": int(len(cyc)),
         "timings_sec": T,
     }
+    report["methodology_checks"] = {
+        # depth=4 + out_deg=0 — обрыв обхода, поэтому «наблюдаемый сток» запрещён.
+        "depth4_terminal_observed": int(((df.depth == 4) & (df.role == "terminal") &
+                                          (df.terminal_kind == "observed")).sum()),
+        "depth4_terminal_estimated": int(((df.depth == 4) & (df.role == "terminal") &
+                                           (df.terminal_kind == "estimated")).sum()),
+        # Входящие seed занижены: правило transit к ним не применяется.
+        "seed_assigned_transit": int((df.is_seed & (df.role == "transit")).sum()),
+        # Рабочий Louvain: 10 строк с >1 seed включают cluster_id=0 (19 изолятов).
+        "working_louvain_multi_seed_rows_including_cluster_0": int((ctab.n_seed > 1).sum()),
+        "working_louvain_network_communities_multi_seed": int(
+            ((ctab.cluster_id != 0) & (ctab.n_seed > 1)).sum()),
+    }
     if not a.no_viewer:
         payload = export.viewer_payload(G, df, ctab, top, {
             "report": report, "resilience": res.to_dict(orient="records"),
@@ -128,6 +141,9 @@ def main():
 def _markdown_report(out, rep, top, ctab, res):
     L = ["# Отчёт прогона", "", "## Качество данных", ""]
     for k, v in rep["data_quality"].items():
+        L.append(f"- **{k}**: {v}")
+    L += ["", "## Проверки методологии", ""]
+    for k, v in rep["methodology_checks"].items():
         L.append(f"- **{k}**: {v}")
     L += ["", "## Роли", ""] + [f"- {ROLE_RU[k]} (`{k}`): {v}" for k, v in rep["role_counts"].items()]
     b = rep["boundary_model"]

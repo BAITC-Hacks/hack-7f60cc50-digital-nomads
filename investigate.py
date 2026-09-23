@@ -2,8 +2,8 @@
 """
 Досье на клиента: факты из графа → Markdown (+ аналитическая записка LLM, если задан LLM_API_KEY).
 
-    python investigate.py --gid 100000003115284100                # досье на клиента
-    python investigate.py --seeds 100000000343175100 100000003684369100   # кто собирает деньги этих seed
+    python investigate.py --gid <gid>                # досье на клиента
+    python investigate.py --seeds <seed_gid_1> <seed_gid_2>   # кто собирает деньги этих seed
     python investigate.py --gid ... --no-llm                      # только факты, без LLM
 
 Нужен out/graph.json (его пишет run.py). Результат печатается и сохраняется в out/cases/.
