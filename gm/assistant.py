@@ -154,8 +154,18 @@ TOOLS = [
 ]
 
 
+TOOL_NAMES = {n for n, *_ in TOOLS}
+
+
 def _call(gi: GraphIndex, name: str, args: dict):
-    return getattr(gi, name)(**args)
+    """Выполнить tool-вызов модели. Ошибки (неизвестная функция, кривые аргументы) возвращаются
+    модели как результат — она может исправиться на следующем шаге, а ответ не падает целиком."""
+    if name not in TOOL_NAMES:
+        return {"error": f"нет функции {name}; доступны: {', '.join(sorted(TOOL_NAMES))}"}
+    try:
+        return getattr(gi, name)(**(args or {}))
+    except (TypeError, ValueError, KeyError) as e:
+        return {"error": f"неверные аргументы {name}: {e}"}
 
 
 # ------------------------------------------------ LLM-режим
@@ -193,7 +203,7 @@ def _llm_openai(gi, question, max_steps=5):
 
 
 def _llm_anthropic(gi, question, max_steps=5):
-    model = os.environ.get("LLM_MODEL", "claude-sonnet-4-5")
+    model = os.environ.get("LLM_MODEL", "claude-sonnet-5")
     base = os.environ.get("LLM_BASE_URL", "https://api.anthropic.com").rstrip("/")
     hdr = {"x-api-key": os.environ["LLM_API_KEY"], "anthropic-version": "2023-06-01"}
     tools = [{"name": n, "description": d, "input_schema": {"type": "object", "properties": p, "required": r}}
@@ -233,6 +243,13 @@ def _rule_based(gi, q):
         legs = "\n".join(f"  {l['from']} → {l['to']}: {kzt(l['sum_kzt'])} KZT" for l in r["legs"])
         roles = ", ".join(f"{x} ({ROLE_RU[r['roles'][x]]})" for x in r["path"])
         return f"Путь денег ({len(r['path']) - 1} шага):\n{legs}\nУчастники: {roles}", ["money_path"]
+    # «откуда» проверяем раньше получателей: оно содержит подстроку «куда»
+    if g and any(w in ql for w in ["откуда", "кто платит", "плательщ", "источник"]):
+        r = gi.upstream(g[0], 3)
+        lines = [f"• {x['gid']} ({ROLE_RU[x['role']]}{', seed' if x['is_seed'] else ''}), {x['hops']} кол. выше"
+                 for x in r["payers"][:10]]
+        return (f"Выше по потоку от {g[0]}: {r['n_upstream']} клиентов, из них seed {r['n_seed_upstream']}.\n"
+                + "\n".join(lines)), ["upstream"]
     if g and (len(g) >= 2 or any(w in ql for w in ["собира", "кому", "куда", "получател"])):
         r = gi.common_receivers(g, 3)
         if not r["receivers"]:
@@ -242,12 +259,6 @@ def _rule_based(gi, q):
                  for x in r["receivers"][:6]]
         return ("Признаки консолидации — узлы ниже по потоку, куда сходятся деньги указанных клиентов:\n"
                 + "\n".join(lines) + "\nЭто гипотезы для проверки."), ["common_receivers"]
-    if g and any(w in ql for w in ["откуда", "кто платит", "плательщ", "источник"]):
-        r = gi.upstream(g[0], 3)
-        lines = [f"• {x['gid']} ({ROLE_RU[x['role']]}{', seed' if x['is_seed'] else ''}), {x['hops']} кол. выше"
-                 for x in r["payers"][:10]]
-        return (f"Выше по потоку от {g[0]}: {r['n_upstream']} клиентов, из них seed {r['n_seed_upstream']}.\n"
-                + "\n".join(lines)), ["upstream"]
     if g:
         return card_text(gi, g[0]), ["node_card"]
     for role in ROLE_RU:

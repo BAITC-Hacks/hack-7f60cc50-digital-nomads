@@ -21,6 +21,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import sys
+
+# Windows-консоль (cp1251/cp866) не умеет печатать «≈», «→» и т.п. — принудительно UTF-8
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 
 RNG = np.random.default_rng(7)
 START = pd.Timestamp("2026-07-01")

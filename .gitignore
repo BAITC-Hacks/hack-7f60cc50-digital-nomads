@@ -5,3 +5,4 @@ out/graph.json
 data_synth/
 data/*.parquet
 .env
+.venv/

@@ -17,6 +17,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+# Windows-консоль (cp1251/cp866) не умеет печатать «≈», «→» и т.п. — принудительно UTF-8
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gm import assistant  # noqa: E402
 
@@ -39,7 +44,9 @@ def make_handler(out: Path, gi):
             if u.path in ("/", "/index.html", "/viewer.html"):
                 return self._send(200, viewer, "text/html; charset=utf-8")
             if u.path == "/api/card":
-                gid = parse_qs(u.query).get("gid", ["0"])[0]
+                gid = parse_qs(u.query).get("gid", [""])[0]
+                if not gid.isdigit():
+                    return self._send(400, {"error": "gid должен быть числом"})
                 return self._send(200, assistant.card(gi, int(gid)))
             if u.path == "/api/health":
                 return self._send(200, {"ok": True, "llm": assistant.llm_configured()})
@@ -49,7 +56,10 @@ def make_handler(out: Path, gi):
             if urlparse(self.path).path != "/api/ask":
                 return self._send(404, {"error": "not found"})
             n = int(self.headers.get("Content-Length", 0))
-            q = json.loads(self.rfile.read(n) or b"{}").get("question", "")
+            try:
+                q = json.loads((self.rfile.read(n) or b"{}").decode("utf-8")).get("question", "")
+            except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+                return self._send(400, {"error": 'ожидается JSON в UTF-8: {"question": "..."}'})
             self._send(200, assistant.answer(gi, q))
 
         def log_message(self, fmt, *args):

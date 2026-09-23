@@ -392,7 +392,11 @@ function renderAI(){
   <button class="ex">кто собирает деньги с этих seed?</button><button class="ex">путь денег между двумя gid</button></div>
   <div id="aiOut"></div>`;
   $('p-ai').querySelectorAll('.ex').forEach(b=>b.onclick=()=>{
-    const seeds=DATA.nodes.filter(n=>n.is_seed&&n.out_deg>0).slice(0,5).map(n=>n.gid);
+    // пример с непустым ответом: seed, чьи деньги за ≤3 перевода доходят до узла №1 топ-листа
+    const up=new Map([[DATA.top[0].gid,0]]),q=[DATA.top[0].gid];
+    while(q.length){const u=q.shift();if(up.get(u)>=3)continue;for(const [v] of (IN.get(u)||[]))if(!up.has(v)){up.set(v,up.get(u)+1);q.push(v)}}
+    let seeds=[...up.keys()].filter(g=>N.get(g)&&N.get(g).is_seed).slice(0,5);
+    if(seeds.length<2)seeds=DATA.nodes.filter(n=>n.is_seed&&n.out_deg>0).slice(0,5).map(n=>n.gid);
     $('aiQ').value=b.textContent.startsWith('кто')?`Кто собирает деньги с ${seeds.join(', ')}?`:`Как деньги идут от ${seeds[0]} к ${DATA.top[0].gid}?`;});
   $('aiGo').onclick=async()=>{const q=$('aiQ').value.trim();if(!q)return;$('aiOut').innerHTML='<p class="muted">думаю…</p>';
     try{const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});const j=await r.json();
