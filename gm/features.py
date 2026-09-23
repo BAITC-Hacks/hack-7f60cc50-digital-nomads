@@ -56,9 +56,9 @@ def structural(G: nx.DiGraph, nodes: pd.DataFrame) -> pd.DataFrame:
     # betweenness без весов: «через скольких посредников проходят кратчайшие денежные маршруты»
     df["betweenness"] = g.map(nx.betweenness_centrality(G, normalized=True)).fillna(0.0)
     df["truncated_by_depth"] = (df.depth == 4) & (df.out_deg == 0)
-    df["component"] = 0
-    for i, comp in enumerate(sorted(nx.weakly_connected_components(G), key=len, reverse=True)):
-        df.loc[df.gid.isin(comp), "component"] = i
+    comp_of = {n: i for i, comp in enumerate(sorted(nx.weakly_connected_components(G), key=len, reverse=True))
+               for n in comp}                                   # O(N), а не O(компоненты × N)
+    df["component"] = g.map(comp_of).fillna(0).astype(int)
     return df
 
 

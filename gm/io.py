@@ -15,8 +15,23 @@ def _read(data_dir: Path, name: str) -> pd.DataFrame:
     if pq.exists():
         return pd.read_parquet(pq)
     if csv.exists():                       # запасной вариант для синтетики / машин без pyarrow
-        return pd.read_csv(csv)
-    raise FileNotFoundError(f"нет {pq} (или {csv})")
+        # gid читаем как int64 сразу: 18-значные числа не должны пройти через float
+        ids = {c: "int64" for c in ("gid", "src", "dst") if c in pd.read_csv(csv, nrows=0).columns}
+        return pd.read_csv(csv, dtype=ids)
+    raise FileNotFoundError(f"нет {pq} (или {csv}). Положите файлы датасета в папку {data_dir}/ "
+                            f"(edges, nodes, transactions) или проверьте на синтетике: make demo")
+
+
+def _as_gid(df: pd.DataFrame, name: str, c: str) -> pd.Series:
+    """18-значные gid не помещаются в float64 (точность 2^53 ≈ 9·10^15): при float-колонке
+    соседние gid слипаются. Поэтому float и пропуски — ошибка с объяснением, а не тихое округление."""
+    s = df[c]
+    if s.isna().any():
+        raise ValueError(f"{name}.{c}: {int(s.isna().sum())} пустых gid")
+    if s.dtype.kind == "f":
+        raise ValueError(f"{name}.{c}: gid пришёл как float — 18-значные номера уже искажены. "
+                         f"Сохраните колонку как int64 или строку")
+    return s.astype("int64")
 
 
 def load(data_dir):
@@ -29,9 +44,12 @@ def load(data_dir):
             raise ValueError(f"{name}: нет колонок {miss}. Сверьтесь с README датасета.")
         out[name] = df
     edges, nodes, tx = out["edges"], out["nodes"], out["transactions"]
-    for df, cols in [(edges, ["src", "dst"]), (nodes, ["gid"]), (tx, ["src", "dst"])]:
+    for name, df, cols in [("edges", edges, ["src", "dst"]), ("nodes", nodes, ["gid"]),
+                           ("transactions", tx, ["src", "dst"])]:
         for c in cols:
-            df[c] = df[c].astype("int64")
+            df[c] = _as_gid(df, name, c)
+    if nodes.gid.duplicated().any():
+        raise ValueError(f"nodes: {int(nodes.gid.duplicated().sum())} повторяющихся gid")
     nodes["is_seed"] = nodes["is_seed"].astype(bool)
     nodes["depth"] = nodes["depth"].astype(int)
     edges["sum_kzt"] = edges["sum_kzt"].astype(float)

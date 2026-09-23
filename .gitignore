@@ -1,8 +1,8 @@
 __pycache__/
 *.pyc
 out_*/
-out/graph.json
 data_synth/
 data/*.parquet
 .env
 .venv/
+out_ui/

@@ -14,5 +14,7 @@ synth:
 demo: synth
 	$(PY) run.py --data data_synth --out out_synth
 test:
+	$(PY) tests/test_methodology.py
 	$(PY) tests/test_pipeline.py
 	$(PY) tests/test_assistant.py
+	$(PY) tests/test_serve.py
