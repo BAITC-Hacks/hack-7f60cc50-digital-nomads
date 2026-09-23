@@ -2,13 +2,15 @@ DATA ?= data
 OUT  ?= out
 PY   ?= python
 
-.PHONY: install run serve synth demo test
+.PHONY: install run serve explain synth demo test
 install:
-	$(PY) -m pip install -r requirements.txt
+	$(PY) -m pip install -r requirements-lock.txt
 run:
 	$(PY) run.py --data $(DATA) --out $(OUT)
 serve:
 	$(PY) serve.py --out $(OUT)
+explain:
+	$(PY) explain.py --out $(OUT) --gid $(GID)
 synth:
 	$(PY) tools/make_synthetic.py --out data_synth
 demo: synth

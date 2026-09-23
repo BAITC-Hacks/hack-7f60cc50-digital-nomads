@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="svg-title svg-desc">
+  <title id="svg-title">Архитектура решения «Граф денег»</title>
+  <desc id="svg-desc">Поток от трёх обезличенных файлов через контроль качества, признаки, модель обрыва и объяснимые правила к CSV, графу, ассистенту и досье.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b1020"/><stop offset="1" stop-color="#151b2e"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#4f8cff"/><stop offset="1" stop-color="#74d4ff"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-opacity=".28"/></filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#67a9ff"/></marker>
+    <style>
+      .title{font:700 42px Arial,sans-serif;fill:#f4f7ff}.sub{font:20px Arial,sans-serif;fill:#9faac5}
+      .h{font:700 22px Arial,sans-serif;fill:#fff}.t{font:17px Arial,sans-serif;fill:#d6def2}.tiny{font:15px Arial,sans-serif;fill:#aeb9d4}
+      .box{fill:#18223a;stroke:#32446c;stroke-width:2;rx:20;filter:url(#shadow)}.arr{stroke:#67a9ff;stroke-width:4;fill:none;marker-end:url(#arrow)}
+      .pill{fill:#263653;stroke:#4f6fa6;stroke-width:1;rx:13}.num{font:700 18px Arial,sans-serif;fill:#74d4ff}
+      .edge{font:12px Arial,sans-serif;fill:#9fc5ff;text-anchor:middle}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect x="70" y="58" width="10" height="82" rx="5" fill="url(#accent)"/>
+  <text x="105" y="98" class="title">Граф денег · архитектура решения</text>
+  <text x="105" y="132" class="sub">От обезличенных транзакций до проверяемой гипотезы AML-аналитика · локально · без чёрного ящика</text>
+
+  <rect class="box" x="65" y="220" width="245" height="355"/>
+  <text x="92" y="262" class="h">1 · Входные данные</text>
+  <rect class="pill" x="92" y="294" width="190" height="46"/><text x="112" y="324" class="t">edges.parquet</text>
+  <rect class="pill" x="92" y="354" width="190" height="46"/><text x="112" y="384" class="t">nodes.parquet</text>
+  <rect class="pill" x="92" y="414" width="190" height="46"/><text x="112" y="444" class="t">transactions.parquet</text>
+  <text x="92" y="498" class="num">2 248 узлов · 3 119 рёбер</text>
+  <text x="92" y="527" class="tiny">81 seed · июль 2026</text>
+  <text x="92" y="552" class="tiny">только исходящие · 4 колена</text>
+
+  <path class="arr" d="M310 397 H367"/><text x="339" y="382" class="edge">3 DataFrame</text>
+  <rect class="box" x="370" y="190" width="275" height="415"/>
+  <text x="397" y="232" class="h">2 · Контроль качества</text>
+  <text x="397" y="278" class="t">✓ схема и типы полей</text>
+  <text x="397" y="316" class="t">✓ edges = transactions</text>
+  <text x="397" y="354" class="t">✓ потерянные seed</text>
+  <text x="397" y="392" class="t">✓ обрыв 4-го колена</text>
+  <text x="397" y="430" class="t">✓ неполный вход seed</text>
+  <rect x="397" y="474" width="220" height="88" rx="14" fill="#112c2d" stroke="#2c8581"/>
+  <text x="416" y="508" class="t">Fail-fast:</text>
+  <text x="416" y="537" class="tiny">ошибка данных останавливает</text>
+  <text x="416" y="558" class="tiny">пайплайн до экспорта</text>
+
+  <path class="arr" d="M645 397 H702"/><text x="674" y="374" class="edge">проверенные</text><text x="674" y="389" class="edge">edges · nodes · tx</text>
+  <rect class="box" x="705" y="165" width="305" height="465"/>
+  <text x="732" y="207" class="h">3 · Признаки и модель</text>
+  <text x="732" y="253" class="t">Структура графа</text><text x="732" y="280" class="tiny">degree · PageRank · betweenness</text>
+  <text x="732" y="327" class="t">Происхождение денег</text><text x="732" y="354" class="tiny">seed_reach · merge_gain · traced KZT</text>
+  <text x="732" y="401" class="t">Время и аномалии</text><text x="732" y="428" class="tiny">лаг ≤2 дней · синхронность · циклы</text>
+  <text x="732" y="475" class="t">Граница 4-го колена</text><text x="732" y="502" class="tiny">logistic regression · калибровка · CV</text>
+  <text x="732" y="549" class="t">Выход этапа</text><text x="732" y="576" class="tiny">G · признаки узлов · p_continue</text>
+
+  <path class="arr" d="M1010 397 H1067"/><text x="1039" y="374" class="edge">G + df</text><text x="1039" y="389" class="edge">+ model report</text>
+  <rect class="box" x="1070" y="190" width="245" height="415"/>
+  <text x="1097" y="232" class="h">4 · Правила</text>
+  <text x="1097" y="278" class="t">6 объяснимых ролей</text>
+  <text x="1097" y="314" class="t">Louvain + устойчивость</text>
+  <text x="1097" y="350" class="t">priority_score [0,1]</text>
+  <text x="1097" y="386" class="t">evidence ≤ 200</text>
+  <rect x="1097" y="430" width="190" height="116" rx="14" fill="#2d1f34" stroke="#8d5aa1"/>
+  <text x="1115" y="464" class="t">Важно</text>
+  <text x="1115" y="490" class="tiny">LLM не назначает роли</text>
+  <text x="1115" y="513" class="tiny">и приоритет — только</text>
+  <text x="1115" y="536" class="tiny">формулирует по фактам</text>
+
+  <path class="arr" d="M1315 397 H1372"/><text x="1344" y="374" class="edge">роли · кластеры</text><text x="1344" y="389" class="edge">· приоритет</text>
+  <rect class="box" x="1375" y="220" width="175" height="355"/>
+  <text x="1398" y="262" class="h">5 · Выход</text>
+  <text x="1398" y="306" class="t">3 CSV</text>
+  <text x="1398" y="342" class="t">graph.json</text>
+  <text x="1398" y="378" class="t">viewer.html</text>
+  <text x="1398" y="414" class="t">ассистент</text>
+  <text x="1398" y="450" class="t">досье</text>
+  <text x="1398" y="486" class="t">report.md</text>
+  <text x="1398" y="533" class="tiny">gid → связи →</text>
+  <text x="1398" y="555" class="tiny">почему проверять</text>
+
+  <rect x="250" y="702" width="1100" height="105" rx="22" fill="#10182a" stroke="#35578c" stroke-width="2"/>
+  <text x="285" y="744" class="h">Контракт доверия</text>
+  <text x="285" y="778" class="t">Каждая роль = формальное правило + фактические значения · каждый вывод = гипотеза для проверки · весь пересчёт &lt; 5 минут</text>
+  <text x="1430" y="850" class="tiny">HackAlem AI</text>
+</svg>
